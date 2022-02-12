@@ -6,6 +6,7 @@
 #include <FastAccelStepper.h>
 #include <list>
 #include <Preferences.h>
+#include "FastLED.h"     // Used for the LED on the Reference Board (or any other pixel LEDS you may add)
 
 const char* FIRMWARE_VERSION = "v1.1";
 
@@ -17,14 +18,30 @@ const char* FIRMWARE_VERSION = "v1.1";
 #define DEFAULT_MIN_SPEED 2000
 #define DEFAULT_MAX_POSITION_IN 0
 #define DEFAULT_MAX_POSITION_OUT 1000
-#define STEPS_PER_MM 20
 
 #define NUM_NONE 0
 #define NUM_CHANNEL 1
 #define NUM_PERCENT 2
 #define NUM_DURATION 3
 #define NUM_VALUE 4
+#define HOME_PIN 12
 
+#define STEP_PER_REV      800
+#define PULLEY_TEETH      20        // How many teeth has the pulley
+#define BELT_PITCH        2         // What is the timing belt pitch in mm
+#define MAX_RPM           3000.0    // Maximum RPM of motor
+#define STEPS_PER_MM       STEP_PER_REV / (PULLEY_TEETH * BELT_PITCH)
+#define MAX_SPEED         (MAX_RPM / 60.0) * PULLEY_TEETH * BELT_PITCH
+
+#define BRIGHTNESS 170
+#define LED_TYPE WS2811
+#define COLOR_ORDER GRB
+#define LED_PIN 25
+#define NUM_LEDS 1
+CRGB leds[NUM_LEDS];
+
+
+volatile bool g_has_not_homed = true;
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
 
@@ -65,6 +82,7 @@ int targetStepperPosition = 0;
 int remainingCommandTime = 0;
 bool stepperEnabled = false;
 bool stepperMoving = false;
+long initial_homing=-1;
 
 // Preferences
 Preferences preferences;
@@ -73,10 +91,54 @@ int maxOutPosition;
 int maxSpeed;
 int minSpeed;
 
+
 // Other
 bool deviceConnected = false;
 std::list<std::string> pendingCommands = {};
 
+void homeing(){
+     Serial.println("OSSM will now home");
+        stepper->setSpeedInHz(4000);
+        stepper->enableOutputs();
+        while (digitalRead(HOME_PIN)){
+          stepper->runForward();
+          delay(5);
+        };
+        stepper->stopMove();
+        while (!digitalRead(HOME_PIN)){
+          Serial.println(digitalRead(HOME_PIN));
+          stepper->runBackward();
+          delay(5);
+        };
+        stepper->stopMove();
+
+        stepper->setCurrentPosition(0);
+        long stepperpos;
+        stepperpos = stepper->getCurrentPosition();
+        Serial.println(stepperpos);
+        while (stepperpos > -1000){
+          stepper->moveTo(-1001);
+          stepperpos = stepper->getCurrentPosition();
+          Serial.println(stepperpos);
+        }  
+        stepper->stopMove();
+        stepper->setCurrentPosition(0);
+        g_has_not_homed = false;
+        Serial.println("Homing Completed");
+}
+
+void setLedRainbow(CRGB leds[])
+{
+    // int power = 250;
+
+    for (int hueShift = 0; hueShift < 350; hueShift++)
+    {
+        int gHue = hueShift % 255;
+        fill_rainbow(leds, NUM_LEDS, gHue, 25);
+        FastLED.show();
+        delay(4);
+    }
+}
 
 void updateSettingsCharacteristic();
 void processCommand(std::string msg);
@@ -135,8 +197,7 @@ class ControlCharacteristicCallback : public BLECharacteristicCallbacks {
       return;
     } else if (msg == "DENABLE") { // enable stepper motor
       Serial.println("ENABLE");
-      stepper->enableOutputs();
-      stepper->forceStopAndNewPosition(0);
+      homeing();
       pendingCommands.clear();
       stepperMoving = false;
       stepperEnabled = true;
@@ -171,6 +232,8 @@ class ControlCharacteristicCallback : public BLECharacteristicCallbacks {
     }
   }
 };
+
+
 
 // Read actions and numeric values from T-Code command
 void processCommand(std::string msg) {
@@ -262,24 +325,26 @@ void logMotion(int targetPosition, int targetDuration) {
 // targetDuration = how quickly to move to targetPosition (in ms)
 void moveTo(int targetPosition, int targetDuration) {
 
-  // if (pendingCommands.size() > 5) {
-  //  targetDuration *= 0.7; // if falling behind on pattern make slower strokes faster to catch up
-  // }
+  if (pendingCommands.size() > 5) {
+    targetDuration *= 0.7; // if falling behind on pattern make slower strokes faster to catch up
+  }
 
   int currentStepperPosition = stepper->getCurrentPosition();
-
+  Serial.println(currentStepperPosition);
   // convert from (0-10000) to (inPos-outPos) range
   targetStepperPosition = -targetPosition * (maxInPosition - maxOutPosition) / 10000 + maxOutPosition * STEPS_PER_MM;
   remainingCommandTime = targetDuration;
 
   // steps/s
-  int targetStepperSpeed = abs(targetStepperPosition - currentStepperPosition) / (targetDuration / 1000.0);
+  int targetStepperSpeed = abs(targetStepperPosition - currentStepperPosition) / (targetDuration / 10000.0);
   
   stepper->setSpeedInHz(targetStepperSpeed);
   stepper->moveTo(targetStepperPosition);
   stepperMoving = true;
+
+  Serial.println(targetStepperSpeed);
+  Serial.println(targetStepperPosition);
   
-  logMotion(targetStepperPosition, targetDuration);
 }
 
 // Update value readable from Settings characteristic
@@ -320,6 +385,12 @@ void setup()
   maxSpeed = preferences.getInt("maxSpeed", DEFAULT_MAX_SPEED);
   minSpeed = preferences.getInt("minSpeed", DEFAULT_MIN_SPEED);
   Serial.printf("Max In Position: %d\nMax Out Position: %d\nMax Speed: %d\nMin Speed: %d\nDone\n", maxInPosition, maxOutPosition, maxSpeed, minSpeed);
+  pinMode(HOME_PIN, INPUT_PULLUP);
+
+  FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.setBrightness(150);
+  setLedRainbow(leds);
+  FastLED.show();
 
   //###################
   // Initiate Stepper
@@ -331,10 +402,11 @@ void setup()
     stepper->setDirectionPin(DIR_PIN);
     stepper->setEnablePin(ENA_PIN);
     stepper->setAutoEnable(false); // if set true, Fastaccelstepper disables the motor if it's not moving which means it won't push back
-    stepper->setAcceleration(10000 * STEPS_PER_MM); // shrug. I dunno. Setting to a huge number because setting a proper acceleration kept resulting in steps being lost for me.
+    stepper->setAcceleration(12000 * STEPS_PER_MM); // shrug. I dunno. Setting to a huge number because setting a proper acceleration kept resulting in steps being lost for me.
     stepper->forceStopAndNewPosition(0);
     stepper->disableOutputs(); // disable stepper by default until an enable command is received over BLE
   }
+
   Serial.println("Done");
 
   //###################
@@ -409,6 +481,6 @@ void loop()
       remainingCommandTime = 0;
     }
   }
-  
+  FastLED.show();
   delay(20);
 }
