@@ -140,6 +140,11 @@ void setLedRainbow(CRGB leds[])
     }
 }
 
+void setLed(){
+  leds[0] = CRGB::Blue;
+  FastLED.show();
+}
+
 void updateSettingsCharacteristic();
 void processCommand(std::string msg);
 void moveTo(int targetPosition, int targetDuration);
@@ -336,9 +341,10 @@ void moveTo(int targetPosition, int targetDuration) {
   remainingCommandTime = targetDuration;
 
   // steps/s
-  int targetStepperSpeed = abs(targetStepperPosition - currentStepperPosition) / (targetDuration / 10000.0);
+  int targetStepperSpeed = abs(targetStepperPosition - currentStepperPosition) / (targetDuration / 1000.0);
   
   stepper->setSpeedInHz(targetStepperSpeed);
+  stepper->applySpeedAcceleration();
   stepper->moveTo(targetStepperPosition);
   stepperMoving = true;
 
@@ -357,6 +363,7 @@ void updateSettingsCharacteristic() {
 class ServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
     deviceConnected = true;
+    setLed();
     Serial.println("BLE Connected");
   };
 
@@ -482,5 +489,5 @@ void loop()
     }
   }
   FastLED.show();
-  delay(20);
+  //delay(20);
 }
