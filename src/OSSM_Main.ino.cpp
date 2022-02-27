@@ -1,28 +1,24 @@
-#include <Arduino.h>          // Basic Needs
-#include <ArduinoJson.h>      // Needed for the Bubble APP
-#include <ESP_FlexyStepper.h> // Current Motion Control
-#include <Encoder.h>          // Used for the Remote Encoder Input
-#include <HTTPClient.h>       // Needed for the Bubble APP
-#include <WiFiManager.h>      // Used to provide easy network connection  https://github.com/tzapu/WiFiManager
-#include <Wire.h>             // Used for i2c connections (Remote OLED Screen)
+# 1 "C:\\Users\\Admin\\AppData\\Local\\Temp\\tmp8v2qznrm"
+#include <Arduino.h>
+# 1 "D:/SM-Projekte/xtoy-stepper/src/OSSM_Main.ino"
+#include <Arduino.h>
+#include <ArduinoJson.h>
+#include <ESP_FlexyStepper.h>
+#include <Encoder.h>
+#include <HTTPClient.h>
+#include <WiFiManager.h>
+#include <Wire.h>
 #include <OSSM-BLE.h>
 #include <list>
 
-#include "FastLED.h"     // Used for the LED on the Reference Board (or any other pixel LEDS you may add)
-#include "OSSM_Config.h" // START HERE FOR Configuration
-#include "OSSM_PinDef.h" // This is where you set pins specific for your board
-#include "OssmUi.h"      // Separate file that helps contain the OLED screen functions
+#include "FastLED.h"
+#include "OSSM_Config.h"
+#include "OSSM_PinDef.h"
+#include "OssmUi.h"
 
 const char* FIRMWARE_VERSION = "v1.1";
-
-///////////////////////////////////////////
-////
-////  To Debug or not to Debug
-////
-///////////////////////////////////////////
-
-// Uncomment the following line if you wish to print DEBUG info
-#define DEBUG
+# 25 "D:/SM-Projekte/xtoy-stepper/src/OSSM_Main.ino"
+#define DEBUG 
 
 #ifdef DEBUG
 #define LogDebug(...) Serial.println(__VA_ARGS__)
@@ -32,29 +28,27 @@ const char* FIRMWARE_VERSION = "v1.1";
 #define LogDebugFormatted(...) ((void)0)
 #endif
 
-// Homing
+
 volatile bool g_has_not_homed = true;
 bool REMOTE_ATTACHED = false;
 
-// Encoder
+
 Encoder g_encoder(ENCODER_A, ENCODER_B);
 
-// Display
+
 OssmUi g_ui(REMOTE_ADDRESS, REMOTE_SDA, REMOTE_CLK);
-
-///////////////////////////////////////////
-////
-////
-////  Encoder functions & scaling
-////
-////
-///////////////////////////////////////////
-
+# 53 "D:/SM-Projekte/xtoy-stepper/src/OSSM_Main.ino"
+IRAM_ATTR void encoderPushButton();
+float getEncoderPercentage();
+void ICACHE_RAM_ATTR stopSwitchHandler();
+void setup();
+void loop();
+#line 53 "D:/SM-Projekte/xtoy-stepper/src/OSSM_Main.ino"
 IRAM_ATTR void encoderPushButton()
 {
-    // TODO: Toggle position mode
-    // g_encoder.write(0);       // Reset on Button Push
-    // g_ui.NextFrame();         // Next Frame on Button Push
+
+
+
     LogDebug("Encoder Button Push");
 }
 
@@ -78,22 +72,13 @@ float getEncoderPercentage()
 
     return positionPercentage;
 }
-
-///////////////////////////////////////////
-////
-////
-////  WIFI Management
-////
-////
-///////////////////////////////////////////
-
-// Wifi Manager
+# 91 "D:/SM-Projekte/xtoy-stepper/src/OSSM_Main.ino"
 WiFiManager wm;
 
-// create the stepper motor object
+
 ESP_FlexyStepper stepper;
 
-// Current command state
+
 volatile float strokePercentage = 0;
 volatile float speedPercentage = 0;
 volatile float deceleration = 0;
@@ -103,9 +88,9 @@ volatile int targetStepperPosition = 0;
 volatile int remainingCommandTime = 0;
 volatile float accelspeed = 0;
 
-// Create tasks for checking pot input or web server control, and task to handle
-// planning the motion profile (this task is high level only and does not pulse
-// the stepper!)
+
+
+
 TaskHandle_t wifiTask = nullptr;
 TaskHandle_t getInputTask = nullptr;
 TaskHandle_t motionTask = nullptr;
@@ -121,8 +106,8 @@ TaskHandle_t blemTask = nullptr;
 #define NUM_LEDS 1
 CRGB leds[NUM_LEDS];
 
-// Declarations
-// TODO: Document functions
+
+
 void setLedRainbow(CRGB leds[]);
 void getUserInputTask(void *pvParameters);
 void motionCommandTask(void *pvParameters);
@@ -136,12 +121,12 @@ bool getInternetSettings();
 
 bool stopSwitchTriggered = 0;
 
-/**
- * the iterrupt service routine (ISR) for the emergency swtich
- * this gets called on a rising edge on the IO Pin the emergency switch is
- * connected it only sets the stopSwitchTriggered flag and then returns. The
- * actual emergency stop will than be handled in the loop function
- */
+
+
+
+
+
+
 void ICACHE_RAM_ATTR stopSwitchHandler()
 {
     stopSwitchTriggered = 1;
@@ -149,16 +134,7 @@ void ICACHE_RAM_ATTR stopSwitchHandler()
     vTaskSuspend(getInputTask);
     stepper.emergencyStop();
 }
-
-///////////////////////////////////////////
-////
-////
-////  BLE Management
-////
-////
-///////////////////////////////////////////
-
-// Other
+# 162 "D:/SM-Projekte/xtoy-stepper/src/OSSM_Main.ino"
 bool deviceConnected = false;
 std::list<std::string> pendingCommands = {};
 bool stepperMoving = false;
@@ -168,9 +144,9 @@ void updateSettingsCharacteristic();
 void processCommand(std::string msg);
 void moveTo(int targetPosition, int targetDuration);
 
-// Read actions and numeric values from T-Code command
+
 void processCommand(std::string msg) {
-  
+
   char command = NULL;
   int channel = 0;
   int targetAmount = 0;
@@ -207,7 +183,7 @@ void processCommand(std::string msg) {
       case '7':
       case '8':
       case '9':
-        int num = c - '0'; // convert from char to numeric int
+        int num = c - '0';
         switch (numBeingRead) {
           case NUM_CHANNEL:
             channel = num;
@@ -223,13 +199,13 @@ void processCommand(std::string msg) {
         break;
     }
   }
-  // if amount was less than 5 digits increase to 5 digits
-  // t-code message is a value to the right of the decimal place so we need a consistent length to work with in moveTo command
-  // ex L99 means 0.99000 and L10010 means 0.10010
+
+
+
   if (command == 'L' && channel == 1) {
     moveTo(targetAmount, targetDuration);
-    //} 
-  } else if (command == 'D') { // not handling currently
+
+  } else if (command == 'D') {
   } else {
     Serial.print("Invalid command: ");
     Serial.println(msg.c_str());
@@ -253,15 +229,15 @@ void moveTo(int targetPosition, int targetDuration){
         targetspeed = (abs(travelInMM) / targetspeed) * (targetDuration);
         accelspeed = map(targetDuration, 80, 1000, 99, 0);
         Serial.print("targetspeed: ");
-        Serial.println(targetspeed); 
+        Serial.println(targetspeed);
         Serial.print("targetxStepperPosition: ");
-        Serial.println(targetxStepperPosition); 
+        Serial.println(targetxStepperPosition);
         stepper.setSpeedInMillimetersPerSecond(targetspeed);
         stepper.setAccelerationInMillimetersPerSecondPerSecond(maxSpeedMmPerSecond * accelspeed * accelspeed / accelerationScaling);
         stepper.setTargetPositionInMillimeters(targetxStepperPosition);
 }
 
-// Received request to update a setting
+
 class SettingsCharacteristicCallback : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *characteristic) {
     std::string msg = characteristic->getValue();
@@ -297,7 +273,7 @@ class SettingsCharacteristicCallback : public BLECharacteristicCallbacks {
   }
 };
 
-// Received T-Code command
+
 class ControlCharacteristicCallback : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *characteristic) {
     std::string msg = characteristic->getValue();
@@ -305,36 +281,36 @@ class ControlCharacteristicCallback : public BLECharacteristicCallbacks {
     Serial.print("Received command: ");
     Serial.println(msg.c_str());
 
-    // check for messages that might need to be immediately handled
-    if (msg == "DSTOP") { // stop request
+
+    if (msg == "DSTOP") {
       Serial.println("STOP");
       stepper.emergencyStop();
       pendingCommands.clear();
       stepperMoving = false;
       return;
-    } else if (msg == "DENABLE") { // enable stepper motor
+    } else if (msg == "DENABLE") {
       Serial.println("ENABLE");
       stepper.releaseEmergencyStop();
       pendingCommands.clear();
       stepperMoving = false;
-      //stepperEnabled = true;
+
       return;
-    } else if (msg == "DDISABLE") { // disable stepper motor
+    } else if (msg == "DDISABLE") {
       Serial.println("DISABLE");
       stepper.emergencyStop();
       pendingCommands.clear();
       stepperMoving = false;
       return;
     }
-    if (msg.front() == 'D') { // device status message, process immediately (technically the code isn't handling any T-Code 'D' messages currently
+    if (msg.front() == 'D') {
       return;
     }
-    if (msg.back() == 'C') { // movement command includes a clear existing commands flag, clear queue and process new movement command immediately
+    if (msg.back() == 'C') {
       pendingCommands.clear();
       pendingCommands.push_back(msg);
       return;
     }
-    // probably a normal movement command, store it to be run after other movement commands are finished
+
     if (pendingCommands.size() < 100) {
       pendingCommands.push_back(msg);
       Serial.print("# of pending commands: ");
@@ -346,7 +322,7 @@ class ControlCharacteristicCallback : public BLECharacteristicCallbacks {
   }
 };
 
-// Client connected to OSSM over BLE
+
 class ServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
     deviceConnected = true;
@@ -372,14 +348,7 @@ void updateSettingsCharacteristic() {
   String settingsInfo = String("maxIn:") + maxInPosition + ",maxOut:" + maxOutPosition + ",maxSpeed:" + maxSpeed + ",minSpeed:" + minSpeed;
   settingsCharacteristic->setValue(settingsInfo.c_str());
 }
-///////////////////////////////////////////
-////
-////
-////  VOID SETUP -- Here's where it's hiding
-////
-////
-///////////////////////////////////////////
-
+# 383 "D:/SM-Projekte/xtoy-stepper/src/OSSM_Main.ino"
 void setup()
 {
     Serial.begin(115200);
@@ -396,68 +365,68 @@ void setup()
     maxSpeed = preferences.getInt("maxSpeed", DEFAULT_MAX_SPEED);
     minSpeed = preferences.getInt("minSpeed", DEFAULT_MIN_SPEED);
 
-    float stepsPerMm = motorStepPerRevolution / (pulleyToothCount * beltPitchMm); // GT2 belt has 2mm tooth pitch
+    float stepsPerMm = motorStepPerRevolution / (pulleyToothCount * beltPitchMm);
     stepper.setStepsPerMillimeter(stepsPerMm);
-    // initialize the speed and acceleration rates for the stepper motor. These
-    // will be overwritten by user controls. 100 values are placeholders
+
+
     stepper.setSpeedInStepsPerSecond(200);
     stepper.setAccelerationInMillimetersPerSecondPerSecond(100);
     stepper.setDecelerationInStepsPerSecondPerSecond(100000);
     stepper.setLimitSwitchActive(LIMIT_SWITCH_PIN);
 
-    // Start the stepper instance as a service in the "background" as a separate
-    // task and the OS of the ESP will take care of invoking the processMovement()
-    // task regularly on core 1 so you can do whatever you want on core 0
-    stepper.startAsService(); // Kinky Makers - we have modified this function
-                              // from default library to run on core 1 and suggest
-                              // you don't run anything else on that core.
 
-    WiFi.mode(WIFI_STA); // explicitly set mode, esp defaults to STA+AP
-    // put your setup code here, to run once:
+
+
+    stepper.startAsService();
+
+
+
+    WiFi.mode(WIFI_STA);
+
     pinMode(MOTOR_ENABLE_PIN, OUTPUT);
     pinMode(WIFI_RESET_PIN, INPUT_PULLUP);
-    pinMode(WIFI_CONTROL_TOGGLE_PIN, WIFI_CONTROLLER); // choose between WIFI_CONTROLLER and LOCAL_CONTROLLER
-    // test
+    pinMode(WIFI_CONTROL_TOGGLE_PIN, WIFI_CONTROLLER);
 
-    // set the pin for the emegrency switch to input with inernal pullup
-    // the emergency switch is connected in a Active Low configuraiton in this
-    // example, meaning the switch connects the input to ground when closed
+
+
+
+
     pinMode(STOP_PIN, INPUT_PULLUP);
-    // attach an interrupt to the IO pin of the switch and specify the handler
-    // function
+
+
     attachInterrupt(digitalPinToInterrupt(STOP_PIN), stopSwitchHandler, RISING);
-    // Set analog pots (control knobs)
+
 
     pinMode(SPEED_POT_PIN, INPUT);
     adcAttachPin(SPEED_POT_PIN);
 
     analogReadResolution(12);
-    analogSetAttenuation(ADC_11db); // allows us to read almost full 3.3V range
+    analogSetAttenuation(ADC_11db);
 
-    // This is here in case you want to change WiFi settings - pull IO low
+
     if (digitalRead(WIFI_RESET_PIN) == LOW)
     {
-        // reset settings - for testing
+
         wm.resetSettings();
         LogDebug("settings reset");
     }
 
-    // OLED SETUP
+
     g_ui.Setup();
     g_ui.UpdateOnly();
 
-    // Rotary Encoder Pushbutton
+
     pinMode(ENCODER_SWITCH, INPUT_PULLDOWN);
     attachInterrupt(digitalPinToInterrupt(ENCODER_SWITCH), encoderPushButton, RISING);
-    
-    //start the WiFi connection task so we can be doing something while homing!
-    xTaskCreatePinnedToCore(wifiConnectionTask,   /* Task function. */
-                            "wifiConnectionTask", /* name of task. */
-                            10000,                /* Stack size of task */
-                            NULL,                 /* parameter of the task */
-                            1,                    /* priority of the task */
-                            &wifiTask,            /* Task handle to keep track of created task */
-                            0);                   /* pin task to core 0 */
+
+
+    xTaskCreatePinnedToCore(wifiConnectionTask,
+                            "wifiConnectionTask",
+                            10000,
+                            NULL,
+                            1,
+                            &wifiTask,
+                            0);
     delay(100);
 
     if (g_has_not_homed == true)
@@ -476,76 +445,68 @@ void setup()
         g_has_not_homed = false;
     }
 
-    xTaskCreatePinnedToCore(blemotionTask,   /* Task function. */
-                            "blemotionTask", /* name of task. */
-                            1000,              /* Stack size of task */
-                            NULL,               /* parameter of the task */
-                            1,                 /* priority of the task */
-                            &blemTask,      /* Task handle to keep track of created task */
-                            0);                 /* pin task to core 0 */
+    xTaskCreatePinnedToCore(blemotionTask,
+                            "blemotionTask",
+                            1000,
+                            NULL,
+                            1,
+                            &blemTask,
+                            0);
     vTaskSuspend(blemTask);
     delay(100);
-    
-    
-    //start the BLE connection for clean homing
-    xTaskCreatePinnedToCore(bleConnectionTask,   /* Task function. */
-                            "bleConnectionTask", /* name of task. */
-                            10000,                /* Stack size of task */
-                            NULL,                 /* parameter of the task */
-                            1,                    /* priority of the task */
-                            &bleTask,            /* Task handle to keep track of created task */
-                            0);                   /* pin task to core 0 */
+
+
+
+    xTaskCreatePinnedToCore(bleConnectionTask,
+                            "bleConnectionTask",
+                            10000,
+                            NULL,
+                            1,
+                            &bleTask,
+                            0);
     delay(100);
 
-    // Kick off the http and motion tasks - they begin executing as soon as they
-    // are created here! Do not change the priority of the task, or do so with
-    // caution. RTOS runs first in first out, so if there are no delays in your
-    // tasks they will prevent all other code from running on that core!
 
-    xTaskCreatePinnedToCore(getUserInputTask,   /* Task function. */
-                            "getUserInputTask", /* name of task. */
-                            10000,              /* Stack size of task */
-                            NULL,               /* parameter of the task */
-                            1,                  /* priority of the task */
-                            &getInputTask,      /* Task handle to keep track of created task */
-                            0);                 /* pin task to core 0 */
+
+
+
+
+    xTaskCreatePinnedToCore(getUserInputTask,
+                            "getUserInputTask",
+                            10000,
+                            NULL,
+                            1,
+                            &getInputTask,
+                            0);
     delay(100);
-    xTaskCreatePinnedToCore(motionCommandTask,   /* Task function. */
-                            "motionCommandTask", /* name of task. */
-                            10000,               /* Stack size of task */
-                            NULL,                /* parameter of the task */
-                            1,                   /* priority of the task */
-                            &motionTask,         /* Task handle to keep track of created task */
-                            0);                  /* pin task to core 0 */
+    xTaskCreatePinnedToCore(motionCommandTask,
+                            "motionCommandTask",
+                            10000,
+                            NULL,
+                            1,
+                            &motionTask,
+                            0);
 
     delay(100);
-    xTaskCreatePinnedToCore(estopResetTask,   /* Task function. */
-                            "estopResetTask", /* name of task. */
-                            10000,            /* Stack size of task */
-                            NULL,             /* parameter of the task */
-                            1,                /* priority of the task */
-                            &estopTask,       /* Task handle to keep track of created task */
-                            0);               /* pin task to core 0 */
+    xTaskCreatePinnedToCore(estopResetTask,
+                            "estopResetTask",
+                            10000,
+                            NULL,
+                            1,
+                            &estopTask,
+                            0);
 
     delay(100);
 
     g_ui.UpdateMessage("OSSM Ready to Play");
 }
-
-///////////////////////////////////////////
-////
-////
-////   VOID LOOP - Hides here
-////
-////
-///////////////////////////////////////////
-
+# 543 "D:/SM-Projekte/xtoy-stepper/src/OSSM_Main.ino"
 void loop()
 {
     g_ui.UpdateState(static_cast<int>(speedPercentage), static_cast<int>(strokePercentage + 0.5f));
     g_ui.UpdateScreen();
 
-    // debug
+
     static bool is_connected = false;
     if (!is_connected && g_ui.DisplayIsConnected())
     {
@@ -558,15 +519,7 @@ void loop()
         is_connected = false;
     }
 }
-
-///////////////////////////////////////////
-////
-////
-////  freeRTOS multitasking
-////
-////
-///////////////////////////////////////////
-
+# 570 "D:/SM-Projekte/xtoy-stepper/src/OSSM_Main.ino"
 void estopResetTask(void *pvParameters)
 {
     for (;;)
@@ -591,7 +544,7 @@ Serial.println("Initializing BLE Server...");
   BLEDevice::init("OSSM");
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new ServerCallbacks());
-  
+
   infoService = pServer->createService(BLEUUID((uint16_t) 0x180a));
   BLE2904* softwareVersionDescriptor = new BLE2904();
   softwareVersionDescriptor->setFormat(BLE2904::FORMAT_UINT8);
@@ -603,7 +556,7 @@ Serial.println("Initializing BLE Server...");
   softwareVersionCharacteristic->addDescriptor(new BLE2902());
   softwareVersionCharacteristic->setValue(FIRMWARE_VERSION);
   infoService->start();
-  
+
   pService = pServer->createService(SERVICE_UUID);
   controlCharacteristic = pService->createCharacteristic(
                                          CONTROL_CHARACTERISTIC_UUID,
@@ -613,7 +566,7 @@ Serial.println("Initializing BLE Server...");
   controlCharacteristic->addDescriptor(new BLE2902());
   controlCharacteristic->setValue("");
   controlCharacteristic->setCallbacks(new ControlCharacteristicCallback());
-  
+
   settingsCharacteristic = pService->createCharacteristic(
                                          SETTINGS_CHARACTERISTIC_UUID,
                                          BLECharacteristic::PROPERTY_READ |
@@ -628,7 +581,7 @@ Serial.println("Initializing BLE Server...");
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
+  pAdvertising->setMinPreferred(0x06);
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
   updateSettingsCharacteristic();
@@ -640,16 +593,16 @@ void wifiConnectionTask(void *pvParameters)
 {
     wm.setConfigPortalTimeout(100);
     wm.setConfigPortalBlocking(false);
-    // here we try to connect to WiFi or launch settings hotspot for you to enter
-    // WiFi credentials
+
+
     if (!wm.autoConnect("OSSM-setup"))
     {
-        // TODO: Set Status LED to indicate failure
+
         LogDebug("failed to connect and hit timeout");
     }
     else
     {
-        // TODO: Set Status LED to indicate everything is ok!
+
         LogDebug("Connected!");
     }
     for (;;)
@@ -657,7 +610,7 @@ void wifiConnectionTask(void *pvParameters)
         wm.process();
         vTaskDelay(1);
 
-        // delete this task once connected!
+
         if (WiFi.status() == WL_CONNECTED)
         {
             vTaskDelete(NULL);
@@ -667,33 +620,33 @@ void wifiConnectionTask(void *pvParameters)
 
 void blemotionTask(void *pvParameters)
 {
-    for (;;) // tasks should loop forever and not return - or will throw error in
-             // OS
+    for (;;)
+
     {
         while (stepper.getDistanceToTargetSigned() != 0)
         {
-            vTaskDelay(5); // wait for motion to complete
+            vTaskDelay(5);
         }
         stepper.setDecelerationInMillimetersPerSecondPerSecond(maxSpeedMmPerSecond * accelspeed * accelspeed / accelerationScaling);
         vTaskDelay(1);
-        if (pendingCommands.size() > 0) { 
+        if (pendingCommands.size() > 0) {
         std::string command = pendingCommands.front();
         processCommand(command);
         pendingCommands.pop_front();
-        }  
+        }
         vTaskDelay(1);
-    }    
+    }
 }
-// Task to read settings from server - only need to check this when in WiFi
-// control mode
+
+
 void getUserInputTask(void *pvParameters)
 {
     bool wifiControlEnable = false;
-    for (;;) // tasks should loop forever and not return - or will throw error in
-             // OS
+    for (;;)
+
     {
-        // LogDebug("Speed: " + String(speedPercentage) + "\% Stroke: " + String(strokePercentage) +
-        //          "\% Distance to target: " + String(stepper.getDistanceToTargetSigned()) + " steps?");
+
+
         if (speedPercentage > 1)
         {
             stepper.releaseEmergencyStop();
@@ -701,15 +654,15 @@ void getUserInputTask(void *pvParameters)
         else
         {
             stepper.emergencyStop();
-            // LogDebug("FULL STOP CAPTAIN");
+
         }
 
-        if (digitalRead(WIFI_CONTROL_TOGGLE_PIN) == HIGH) // TODO: check if wifi available and handle gracefully
+        if (digitalRead(WIFI_CONTROL_TOGGLE_PIN) == HIGH)
         {
             if (wifiControlEnable == false)
             {
-                // this is a transition to WiFi, we should tell the server it has
-                // control
+
+
                 wifiControlEnable = true;
                 if (WiFi.status() != WL_CONNECTED)
                 {
@@ -717,50 +670,50 @@ void getUserInputTask(void *pvParameters)
                 }
                 setInternetControl(wifiControlEnable);
             }
-            getInternetSettings(); // we load speedPercentage and strokePercentage in
-                                   // this routine.
-      } 
+            getInternetSettings();
+
+      }
        else
        {
             if (wifiControlEnable == true)
             {
-                // this is a transition to local control, we should tell the server it
-                // cannot control
+
+
                 wifiControlEnable = false;
                 setInternetControl(wifiControlEnable);
             }
             speedPercentage = getAnalogAverage(SPEED_POT_PIN,
-                                               50); // get average analog reading, function takes pin and # samples
-            // strokePercentage = getAnalogAverage(STROKE_POT_PIN, 50);
+                                               50);
+
             strokePercentage = getEncoderPercentage();
         }
 
-        // We should scale these values with initialized settings not hard coded
-        // values!     
+
+
         if (speedPercentage > commandDeadzonePercentage)
         {
             stepper.setSpeedInMillimetersPerSecond(maxSpeedMmPerSecond * speedPercentage / 100.0);
             stepper.setAccelerationInMillimetersPerSecondPerSecond(maxSpeedMmPerSecond * speedPercentage *
                                                                    speedPercentage / accelerationScaling);
-            // We do not set deceleration value here because setting a low decel when
-            // going from high to low speed causes the motor to travel a long distance
-            // before slowing. We should only change decel at rest
+
+
+
         }
-        vTaskDelay(100); // let other code run!
+        vTaskDelay(100);
     }
 }
 
 void motionCommandTask(void *pvParameters)
 {
-    for (;;) // tasks should loop forever and not return - or will throw error in
-             // OS
+    for (;;)
+
     {
-        // poll at 200Hz for when motion is complete
+
         while ((stepper.getDistanceToTargetSigned() != 0) || (strokePercentage < commandDeadzonePercentage) ||
                (speedPercentage < commandDeadzonePercentage))
         {
-            vTaskDelay(5); // wait for motion to complete and requested stroke more than zero
-        }  
+            vTaskDelay(5);
+        }
         float targetPosition = (strokePercentage / 100.0) * maxStrokeLengthMm;
         LogDebugFormatted("Moving stepper to position %ld \n", static_cast<long int>(targetPosition));
         vTaskDelay(1);
@@ -772,11 +725,11 @@ void motionCommandTask(void *pvParameters)
         while ((stepper.getDistanceToTargetSigned() != 0) || (strokePercentage < commandDeadzonePercentage) ||
                (speedPercentage < commandDeadzonePercentage))
         {
-            vTaskDelay(5); // wait for motion to complete, since we are going back to
-                           // zero, don't care about stroke value
+            vTaskDelay(5);
+
         }
         targetPosition = 0;
-        // Serial.printf("Moving stepper to position %ld \n", targetPosition);
+
         vTaskDelay(1);
         stepper.setDecelerationInMillimetersPerSecondPerSecond(maxSpeedMmPerSecond * speedPercentage * speedPercentage /
                                                                accelerationScaling);
@@ -793,27 +746,27 @@ float getAnalogAverage(int pinNumber, int samples)
     float percentage = 0;
     for (int i = 0; i < samples; i++)
     {
-        // TODO: Possibly use fancier filters?
+
         sum += analogRead(pinNumber);
     }
     average = sum / samples;
-    // TODO: Might want to add a deadband
-    percentage = 100.0 * average / 4096.0; // 12 bit resolution
+
+    percentage = 100.0 * average / 4096.0;
     return percentage;
 }
 
 bool setInternetControl(bool wifiControlEnable)
 {
-    // here we will SEND the WiFi control permission, and current speed and stroke
-    // to the remote server. The cloudfront redirect allows http connection with
-    // bubble backend hosted at app.researchanddesire.com
 
-    String serverNameBubble = "http://d2g4f7zewm360.cloudfront.net/ossm-set-control"; // live server
-    // String serverNameBubble =
-    // "http://d2oq8yqnezqh3r.cloudfront.net/ossm-set-control"; // this is
-    // version-test server
 
-    // Add values in the document to send to server
+
+
+    String serverNameBubble = "http://d2g4f7zewm360.cloudfront.net/ossm-set-control";
+
+
+
+
+
     StaticJsonDocument<200> doc;
     doc["ossmId"] = ossmId;
     doc["wifiControlEnabled"] = wifiControlEnable;
@@ -822,22 +775,22 @@ bool setInternetControl(bool wifiControlEnable)
     String requestBody;
     serializeJson(doc, requestBody);
 
-    // Http request
+
     HTTPClient http;
     http.begin(serverNameBubble);
     http.addHeader("Content-Type", "application/json");
-    // post and wait for response
+
     int httpResponseCode = http.POST(requestBody);
     String payload = "{}";
     payload = http.getString();
     http.end();
 
-    // deserialize JSON
+
     StaticJsonDocument<200> bubbleResponse;
     deserializeJson(bubbleResponse, payload);
 
-    // TODO: handle status response
-    // const char *status = bubbleResponse["status"]; // "success"
+
+
 
     const char *wifiEnabledStr = (wifiControlEnable ? "true" : "false");
     LogDebugFormatted("Setting Wifi Control: %s\n%s\n%s\n", wifiEnabledStr, requestBody.c_str(), payload.c_str());
@@ -848,42 +801,42 @@ bool setInternetControl(bool wifiControlEnable)
 
 bool getInternetSettings()
 {
-    // here we will request speed and stroke settings from the remote server. The
-    // cloudfront redirect allows http connection with bubble backend hosted at
-    // app.researchanddesire.com
 
-    String serverNameBubble = "http://d2g4f7zewm360.cloudfront.net/ossm-get-settings"; // live server
-    // String serverNameBubble =
-    // "http://d2oq8yqnezqh3r.cloudfront.net/ossm-get-settings"; // this is
-    // version-test
-    // server
 
-    // Add values in the document
+
+
+    String serverNameBubble = "http://d2g4f7zewm360.cloudfront.net/ossm-get-settings";
+
+
+
+
+
+
     StaticJsonDocument<200> doc;
     doc["ossmId"] = ossmId;
     String requestBody;
     serializeJson(doc, requestBody);
 
-    // Http request
+
     HTTPClient http;
     http.begin(serverNameBubble);
     http.addHeader("Content-Type", "application/json");
-    // post and wait for response
+
     int httpResponseCode = http.POST(requestBody);
     String payload = "{}";
     payload = http.getString();
     http.end();
 
-    // deserialize JSON
+
     StaticJsonDocument<200> bubbleResponse;
     deserializeJson(bubbleResponse, payload);
 
-    // TODO: handle status response
-    // const char *status = bubbleResponse["status"]; // "success"
+
+
     strokePercentage = bubbleResponse["response"]["stroke"];
     speedPercentage = bubbleResponse["response"]["speed"];
 
-    // debug info on the http payload
+
     LogDebug(payload);
     LogDebugFormatted("HTTP Response code: %d\n", httpResponseCode);
 
@@ -892,7 +845,7 @@ bool getInternetSettings()
 
 void setLedRainbow(CRGB leds[])
 {
-    // int power = 250;
+
 
     for (int hueShift = 0; hueShift < 350; hueShift++)
     {

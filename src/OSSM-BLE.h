@@ -3,7 +3,6 @@
 #include <BLEServer.h>
 #include "BLE2902.h"
 #include "BLE2904.h"
-#include <list>
 #include <Preferences.h>
 
 //const char* FIRMWARE_VERSION = "v1.1";
@@ -37,8 +36,8 @@
 #define NUM_VALUE 4
 #define HOME_PIN 12
 
-#define DEFAULT_MAX_SPEED 200
-#define DEFAULT_MIN_SPEED 2000
+#define DEFAULT_MAX_SPEED 300
+#define DEFAULT_MIN_SPEED 1000
 
 // Global Variables - Bluetooth
 BLEServer *pServer;
