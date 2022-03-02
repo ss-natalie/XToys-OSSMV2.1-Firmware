@@ -3,10 +3,13 @@ Firmware for use with the OSSM (Open Source Sex Machine) by KinkyMakers.
 [https://github.com/KinkyMakers/OSSM-hardware](https://github.com/KinkyMakers/OSSM-hardware)
 
 ## Setting Up
-1. Download the [OSSM-BLE.ino](https://github.com/denialtek/xtoys-ossm-firmware/blob/main/OSSM-BLE.ino) file.
-2. Open the ino file in the Arduino IDE and upload the firmware to the OSSM ESP32.
-3. In [XToys](https://xtoys.app) click the + button, add the OSSM toy, and click the bluetooth connect button.
-4. In the setup dialog connect to the OSSM, enable the motor, and adjust the settings as desired.
+1. Clone Repo localy. 
+2. Setup Platformio see [OSSM GIT] https://github.com/KinkyMakers/OSSM-hardware 
+3. Setup Your Settings like for OSSM. maxStrokeLengthMm 
+3. Flash Firmware. 
+4. In [XToys](https://xtoys.app) click the + button, add the OSSM toy, and click the bluetooth connect button.
+5. Local Control & Webcontrol is disabled as Bluetooth is Connected.
+6. In the setup dialog connect to the OSSM. Don't Change Settings in the Xtoys app. 
 
 ## Bluetooth Info
 This firmware uses the following Bluetooth info:  
@@ -22,14 +25,3 @@ DENABLE - Enables motor (non-standard T-Code command)
 DDISABLE - Disable motor (non-standard T-Code command)  
 L199I100 - Linear actuator move commands with a position + speed  
 L199I100C - Appending 'C' to a command causes the OSSM to clear any pending movement commands (non-standard T-Code command)
-
-## Settings Commands
-Supported settings commands to send to Settings characteristic:  
-minSpeed:200 - set minimum speed of half-stroke to 200ms (used by XToys client)  
-maxSpeed:2000 - set maximum speed of half-stroke to 2000ms (used by XToys client)  
-maxOut:0 - set the position the stepper should stop at when moving in the one direction  
-maxIn:1000 - set the position the stepper should stop at when moving in the other direction
-
-Changes made via these settings commands are stored in the ESP32 flash memory. Alternatively the default settings can be adjusted in the ino file. 
-
-Reading from the Settings characteristic will return a comma separated list of the current settings.
