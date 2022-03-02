@@ -241,24 +241,25 @@ void moveTo(int targetPosition, int targetDuration){
         stepper.releaseEmergencyStop();
         float currentStepperPosition = stepper.getCurrentPositionInMillimeters();
         float targetxStepperPosition;
-        targetPosition = map(targetPosition, 0, 100, 0, 1000);
-        if(targetPosition != 0){
-         targetxStepperPosition = (float(targetPosition) * 0.001) * maxStrokeLengthMm;
-        } else {
-         targetxStepperPosition = 0.0;
-        }
-        float targetspeed = map(targetDuration, 80, 1000, maxSpeedMmPerSecond, 0);
 
+        targetxStepperPosition = map(targetPosition, 0, 100, (maxStrokeLengthMm -(strokeZeroOffsetmm * 0.5)), 0.0);
         float travelInMM = targetxStepperPosition -currentStepperPosition;
-        targetspeed = (abs(travelInMM) / targetspeed) * (targetDuration);
-        accelspeed = map(targetDuration, 80, 1000, 99, 0);
+        float targetspeed = (abs(travelInMM) / targetDuration) * xtoySpeedScaling;
+       
+        accelspeed = map(targetspeed, 0.0, maxSpeedMmPerSecond, 0, 100);
+        Serial.print("currentStepperPosition: ");
+        Serial.println(currentStepperPosition); 
         Serial.print("targetspeed: ");
         Serial.println(targetspeed); 
         Serial.print("targetxStepperPosition: ");
         Serial.println(targetxStepperPosition); 
+        if(targetxStepperPosition < (maxStrokeLengthMm + (strokeZeroOffsetmm * 0.5)) || targetxStepperPosition >= 0.0){
         stepper.setSpeedInMillimetersPerSecond(targetspeed);
-        stepper.setAccelerationInMillimetersPerSecondPerSecond(maxSpeedMmPerSecond * accelspeed * accelspeed / accelerationScaling);
+        stepper.setAccelerationInMillimetersPerSecondPerSecond(xtoyAccelartion);
         stepper.setTargetPositionInMillimeters(targetxStepperPosition);
+        } else {
+          LogDebugFormatted("Position out of Safety %ld \n", static_cast<long int>(targetxStepperPosition));
+        }
 }
 
 // Received request to update a setting
@@ -310,20 +311,17 @@ class ControlCharacteristicCallback : public BLECharacteristicCallbacks {
       Serial.println("STOP");
       stepper.emergencyStop();
       pendingCommands.clear();
-      stepperMoving = false;
       return;
     } else if (msg == "DENABLE") { // enable stepper motor
       Serial.println("ENABLE");
       stepper.releaseEmergencyStop();
       pendingCommands.clear();
-      stepperMoving = false;
       //stepperEnabled = true;
       return;
     } else if (msg == "DDISABLE") { // disable stepper motor
       Serial.println("DISABLE");
       stepper.emergencyStop();
       pendingCommands.clear();
-      stepperMoving = false;
       return;
     }
     if (msg.front() == 'D') { // device status message, process immediately (technically the code isn't handling any T-Code 'D' messages currently
@@ -361,9 +359,10 @@ class ServerCallbacks: public BLEServerCallbacks {
     deviceConnected = false;
     Serial.println("BLE Disconnected");
     pServer->startAdvertising();
+    vTaskSuspend(blemTask);
     vTaskResume(motionTask);
     vTaskResume(getInputTask);
-    vTaskSuspend(estopTask);
+    vTaskResume(estopTask);
   }
 };
 
@@ -674,7 +673,8 @@ void blemotionTask(void *pvParameters)
         {
             vTaskDelay(5); // wait for motion to complete
         }
-        stepper.setDecelerationInMillimetersPerSecondPerSecond(maxSpeedMmPerSecond * accelspeed * accelspeed / accelerationScaling);
+        stepper.releaseEmergencyStop();
+        stepper.setDecelerationInMillimetersPerSecondPerSecond(xtoyAccelartion);
         vTaskDelay(1);
         if (pendingCommands.size() > 0) { 
         std::string command = pendingCommands.front();
@@ -684,6 +684,7 @@ void blemotionTask(void *pvParameters)
         vTaskDelay(1);
     }    
 }
+
 // Task to read settings from server - only need to check this when in WiFi
 // control mode
 void getUserInputTask(void *pvParameters)

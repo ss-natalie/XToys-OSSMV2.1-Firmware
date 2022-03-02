@@ -5,8 +5,6 @@
 #include "BLE2904.h"
 #include <Preferences.h>
 
-//const char* FIRMWARE_VERSION = "v1.1";
-
 #define SERVICE_UUID                "e556ec25-6a2d-436f-a43d-82eab88dcefd"
 
 #define CONTROL_CHARACTERISTIC_UUID "c4bee434-ae8f-4e67-a741-0607141f185b"
@@ -36,7 +34,7 @@
 #define NUM_VALUE 4
 #define HOME_PIN 12
 
-#define DEFAULT_MAX_SPEED 300
+#define DEFAULT_MAX_SPEED 50
 #define DEFAULT_MIN_SPEED 1000
 
 // Global Variables - Bluetooth
