@@ -5,15 +5,25 @@
 #include <HTTPClient.h>       // Needed for the Bubble APP
 #include <WiFiManager.h>      // Used to provide easy network connection  https://github.com/tzapu/WiFiManager
 #include <Wire.h>             // Used for i2c connections (Remote OLED Screen)
-#include <OSSM-BLE.h>
-#include <list>
 
-#include "FastLED.h"     // Used for the LED on the Reference Board (or any other pixel LEDS you may add)
-#include "OSSM_Config.h" // START HERE FOR Configuration
-#include "OSSM_PinDef.h" // This is where you set pins specific for your board
-#include "OssmUi.h"      // Separate file that helps contain the OLED screen functions
+#include "FastLED.h"          // Used for the LED on the Reference Board (or any other pixel LEDS you may add)
+#include "OSSM_Config.h"      // START HERE FOR Configuration
+#include "OSSM_PinDef.h"      // This is where you set pins specific for your board
+#include "OssmUi.h"           // Separate file that helps contain the OLED screen functions
 
-const char* FIRMWARE_VERSION = "v1.1";
+///////////////////////////////////////////
+////
+////  Includes for Xtoys BLE Integration
+////
+///////////////////////////////////////////
+
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
+#include "BLE2902.h"
+#include "BLE2904.h"
+#include <Preferences.h>
+#include <list>               // Is filled with the Cached Commands from Xtoys
 
 ///////////////////////////////////////////
 ////
@@ -153,17 +163,66 @@ void ICACHE_RAM_ATTR stopSwitchHandler()
 ///////////////////////////////////////////
 ////
 ////
-////  BLE Management
+//// Xtoys Integration BLE Management
 ////
 ////
-///////////////////////////////////////////
+////////////////////////////////////////////
+
+const char* FIRMWARE_VERSION = "v1.1";
+
+#define SERVICE_UUID                "e556ec25-6a2d-436f-a43d-82eab88dcefd"
+#define CONTROL_CHARACTERISTIC_UUID "c4bee434-ae8f-4e67-a741-0607141f185b"
+#define SETTINGS_CHARACTERISTIC_UUID "fe9a02ab-2713-40ef-a677-1716f2c03bad"
+
+// WRITE
+// T-Code messages in the format:
+// ex. L199I100 = move linear actuator to the 99% position over 100ms
+// ex. L10I100 = move linear actuator to the 0% position over 100ms
+// DSTOP = stop
+// DENABLE = enable motor (non-standard T-Code command)
+// DDISABLE = disable motor (non-standard T-Code command)
+
+// WRITE
+// Preferences in the format:
+// minSpeed:200 = set minimum speed of half-stroke to 200ms (used by XToys client)
+// maxSpeed:2000 = set maximum speed of half-stroke to 2000ms (used by XToys client)
+// READ
+// Returns all preference values in the format:
+// minSpeed:200,maxSpeed:2000,maxOut:0,maxIn:1000
+
+#define NUM_NONE 0
+#define NUM_CHANNEL 1     // Channel from Xtoys T-Code
+#define NUM_PERCENT 2     // Percent of Position from Xtoys T-Code
+#define NUM_DURATION 3    // Duration to Position from Xtoys T-Code in ms
+#define NUM_VALUE 4
+
+#define DEFAULT_MAX_SPEED 50        // Max Sending Resolution in ms should not be changed right now
+#define DEFAULT_MIN_SPEED 1000      // Min Sending Resolution in ms should not be changed right now
+#define CHANGE_SLOWDOWN 100         // Ms wich the system is slowing down when change of code is dected for safety
+
+// Global Variables - Bluetooth Configuration
+BLEServer *pServer;
+BLEService *pService;
+BLECharacteristic *controlCharacteristic;
+BLECharacteristic *settingsCharacteristic;
+BLEService *infoService;
+BLECharacteristic *softwareVersionCharacteristic;
+
+// Preferences
+Preferences preferences;
+int maxInPosition;
+int maxOutPosition;
+int maxSpeed;
+int minSpeed;
+int changetime;
+
 
 // Other
 bool deviceConnected = false;
+unsigned long previousMillis = 0; 
 std::list<std::string> pendingCommands = {};
-bool stepperMoving = false;
-bool moveto = false;
 
+// Create Voids for Xtoys
 void updateSettingsCharacteristic();
 void processCommand(std::string msg);
 void moveTo(int targetPosition, int targetDuration);
@@ -237,28 +296,33 @@ void processCommand(std::string msg) {
 
 }
 
+// Dedicated MoveCommand for Xtoys for Position based movement
 void moveTo(int targetPosition, int targetDuration){
         stepper.releaseEmergencyStop();
-        float currentStepperPosition = stepper.getCurrentPositionInMillimeters();
-        float targetxStepperPosition;
+        unsigned long currentMillis = millis();                                       // Get Time 
+        float targetspeed;
+        float currentStepperPosition = stepper.getCurrentPositionInMillimeters();      // Get Current Position from Stepper 
+        float targetxStepperPosition = map(targetPosition, 0, 100, (maxStrokeLengthMm -(strokeZeroOffsetmm * 0.5)), 0.0); // Calculate Target positon Mulitply for Calculation Speed. 
+        float travelInMM = targetxStepperPosition -currentStepperPosition; // Get Travel Distance to Target Position 
 
-        targetxStepperPosition = map(targetPosition, 0, 100, (maxStrokeLengthMm -(strokeZeroOffsetmm * 0.5)), 0.0);
-        float travelInMM = targetxStepperPosition -currentStepperPosition;
-        float targetspeed = (abs(travelInMM) / targetDuration) * xtoySpeedScaling;
-       
-        accelspeed = map(targetspeed, 0.0, maxSpeedMmPerSecond, 0, 100);
-        Serial.print("currentStepperPosition: ");
-        Serial.println(currentStepperPosition); 
-        Serial.print("targetspeed: ");
-        Serial.println(targetspeed); 
-        Serial.print("targetxStepperPosition: ");
-        Serial.println(targetxStepperPosition); 
-        if(targetxStepperPosition < (maxStrokeLengthMm + (strokeZeroOffsetmm * 0.5)) || targetxStepperPosition >= 0.0){
-        stepper.setSpeedInMillimetersPerSecond(targetspeed);
-        stepper.setAccelerationInMillimetersPerSecondPerSecond(xtoyAccelartion);
-        stepper.setTargetPositionInMillimeters(targetxStepperPosition);
+        if(currentMillis - previousMillis <= changetime){
+          targetspeed = (abs(travelInMM) / targetDuration) * xtoySpeedScaling * 0.20;
         } else {
+          targetspeed = (abs(travelInMM) / targetDuration) * xtoySpeedScaling;  // Calculate Target speed from Travel Distance with xtoySpeedScaling 
+        }
+        LogDebugFormatted("Targetspeed %ld \n", static_cast<long int>(targetspeed));
+        LogDebugFormatted("TargetxStepperPosition %ld \n", static_cast<long int>(targetxStepperPosition));
+        // Security if something went wrong and were out of target range kill all.
+        if(targetxStepperPosition < (maxStrokeLengthMm + (strokeZeroOffsetmm * 0.5)) || targetxStepperPosition >= 0.0){
+        stepper.setSpeedInMillimetersPerSecond(targetspeed);                          // Sets speed to Stepper 
+        stepper.setAccelerationInMillimetersPerSecondPerSecond(xtoyAccelartion);      // Sets Accelartion
+        stepper.setTargetPositionInMillimeters(targetxStepperPosition);               //Sets Position 
+
+        } else {
+          stepper.emergencyStop();
+          vTaskSuspend(blemTask);
           LogDebugFormatted("Position out of Safety %ld \n", static_cast<long int>(targetxStepperPosition));
+          g_ui.UpdateMessage("Disabled");
         }
 }
 
@@ -267,13 +331,14 @@ class SettingsCharacteristicCallback : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *characteristic) {
     std::string msg = characteristic->getValue();
 
-    LogDebug("Received command: ");
+    LogDebug("");
     Serial.println(msg.c_str());
 
     std::size_t pos = msg.find(':');
     std::string settingKey = msg.substr(0, pos);
     std::string settingValue = msg.substr(pos + 1, msg.length());
 
+    // Keeping this for not breakting xtoy Side untill i get second integration with hardocded settings.
     if (settingKey == "maxIn") {
       maxInPosition = atoi(settingValue.c_str());
       preferences.putInt("maxIn", maxInPosition);
@@ -290,10 +355,6 @@ class SettingsCharacteristicCallback : public BLECharacteristicCallbacks {
       minSpeed = atoi(settingValue.c_str());
       preferences.putInt("minSpeed", minSpeed);
     }
-    Serial.print("Setting pref ");
-    Serial.print(settingKey.c_str());
-    Serial.print(" to ");
-    Serial.println(settingValue.c_str());
     updateSettingsCharacteristic();
   }
 };
@@ -303,42 +364,38 @@ class ControlCharacteristicCallback : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *characteristic) {
     std::string msg = characteristic->getValue();
 
-    Serial.print("Received command: ");
+    LogDebug("Received command: ");
     Serial.println(msg.c_str());
 
     // check for messages that might need to be immediately handled
     if (msg == "DSTOP") { // stop request
-      Serial.println("STOP");
+      LogDebug("STOP");
       stepper.emergencyStop();
       pendingCommands.clear();
       return;
-    } else if (msg == "DENABLE") { // enable stepper motor
-      Serial.println("ENABLE");
-      stepper.releaseEmergencyStop();
-      pendingCommands.clear();
-      //stepperEnabled = true;
+    } else if (msg == "DENABLE") { // Does nothing anymore not needed
       return;
     } else if (msg == "DDISABLE") { // disable stepper motor
-      Serial.println("DISABLE");
+      LogDebug("DISABLE");
       stepper.emergencyStop();
       pendingCommands.clear();
       return;
     }
-    if (msg.front() == 'D') { // device status message, process immediately (technically the code isn't handling any T-Code 'D' messages currently
+    if (msg.front() == 'D') { // device status message (technically the code isn't handling any T-Code 'D' messages currently
       return;
     }
-    if (msg.back() == 'C') { // movement command includes a clear existing commands flag, clear queue and process new movement command immediately
+    if (msg.back() == 'C') { // movement command includes a clear existing commands flag, clear queue start slow movement counter
       pendingCommands.clear();
+      previousMillis = millis();  
       pendingCommands.push_back(msg);
       return;
     }
     // probably a normal movement command, store it to be run after other movement commands are finished
     if (pendingCommands.size() < 100) {
       pendingCommands.push_back(msg);
-      Serial.print("# of pending commands: ");
-      Serial.println(pendingCommands.size());
+      LogDebugFormatted("# of pending commands:  %ld \n", static_cast<long int>(pendingCommands.size()));
     } else {
-      Serial.print("Too many commands in queue. Dropping: ");
+      LogDebug("Too many commands in queue. Dropping: ");
       Serial.println(msg.c_str());
     }
   }
@@ -353,6 +410,7 @@ class ServerCallbacks: public BLEServerCallbacks {
     vTaskSuspend(getInputTask);
     vTaskSuspend(estopTask);
     vTaskResume(blemTask);
+    moveTo(0, 500);             // Pulls it to 0 Position Fully out for Xtoys
   };
 
   void onDisconnect(BLEServer* pServer) {
@@ -475,18 +533,17 @@ void setup()
         g_has_not_homed = false;
     }
 
-    xTaskCreatePinnedToCore(blemotionTask,   /* Task function. */
-                            "blemotionTask", /* name of task. */
-                            1000,              /* Stack size of task */
+    //start the BLE connection after homing for clean homing when reconnecting
+    xTaskCreatePinnedToCore(blemotionTask,      /* Task function. */
+                            "blemotionTask",    /* name of task. */
+                            2000,               /* Stack size of task */
                             NULL,               /* parameter of the task */
-                            1,                 /* priority of the task */
-                            &blemTask,      /* Task handle to keep track of created task */
+                            1,                  /* priority of the task */
+                            &blemTask,          /* Task handle to keep track of created task */
                             0);                 /* pin task to core 0 */
-    vTaskSuspend(blemTask);
+    vTaskSuspend(blemTask);                     //Suspend Task after Creation for free CPU & RAM
     delay(100);
     
-    
-    //start the BLE connection for clean homing
     xTaskCreatePinnedToCore(bleConnectionTask,   /* Task function. */
                             "bleConnectionTask", /* name of task. */
                             10000,                /* Stack size of task */
@@ -503,7 +560,7 @@ void setup()
 
     xTaskCreatePinnedToCore(getUserInputTask,   /* Task function. */
                             "getUserInputTask", /* name of task. */
-                            10000,              /* Stack size of task */
+                            5000,              /* Stack size of task */
                             NULL,               /* parameter of the task */
                             1,                  /* priority of the task */
                             &getInputTask,      /* Task handle to keep track of created task */
@@ -511,7 +568,7 @@ void setup()
     delay(100);
     xTaskCreatePinnedToCore(motionCommandTask,   /* Task function. */
                             "motionCommandTask", /* name of task. */
-                            10000,               /* Stack size of task */
+                            5000,               /* Stack size of task */
                             NULL,                /* parameter of the task */
                             1,                   /* priority of the task */
                             &motionTask,         /* Task handle to keep track of created task */
@@ -586,7 +643,7 @@ void estopResetTask(void *pvParameters)
 
 void bleConnectionTask(void *pvParameters){
 
-Serial.println("Initializing BLE Server...");
+  LogDebug("Initializing BLE Server...");
   BLEDevice::init("OSSM");
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new ServerCallbacks());
@@ -664,6 +721,7 @@ void wifiConnectionTask(void *pvParameters)
     }
 }
 
+// BLE Motion task reads the Command list and starts the processing Cycle
 void blemotionTask(void *pvParameters)
 {
     for (;;) // tasks should loop forever and not return - or will throw error in

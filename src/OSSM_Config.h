@@ -33,8 +33,8 @@ const char *ossmId = "37289dfadf73";
         Xtoys Config
 
 */
-const float xtoySpeedScaling = 300.0f;
-const float xtoyAccelartion = 10000.0f;
+const float xtoySpeedScaling = 300.0f;          // Scaling how fast Xtoy can travel its not using the maxSpeedMmPerSecond at top. Please change carefully high falues tend to crash. 
+const float xtoyAccelartion = 10000.0f;         // Hard Coded Accel- & Deacceleration right now. 
 
 
 /*
