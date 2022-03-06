@@ -13,6 +13,16 @@
 
 ///////////////////////////////////////////
 ////
+////  RTOS Settings
+////
+///////////////////////////////////////////
+
+#define configSUPPORT_DYNAMIC_ALLOCATION    1
+#define INCLUDE_uxTaskGetStackHighWaterMark 1
+
+
+///////////////////////////////////////////
+////
 ////  Includes for Xtoys BLE Integration
 ////
 ///////////////////////////////////////////
@@ -198,7 +208,7 @@ const char* FIRMWARE_VERSION = "v1.1";
 
 #define DEFAULT_MAX_SPEED 50        // Max Sending Resolution in ms should not be changed right now
 #define DEFAULT_MIN_SPEED 1000      // Min Sending Resolution in ms should not be changed right now
-#define CHANGE_SLOWDOWN 100         // Ms wich the system is slowing down when change of code is dected for safety
+
 
 // Global Variables - Bluetooth Configuration
 BLEServer *pServer;
@@ -214,12 +224,13 @@ int maxInPosition;
 int maxOutPosition;
 int maxSpeed;
 int minSpeed;
-int changetime;
+int changetime = 100; // Ms wich the system is slowing down when change of code is dected for safety
 
 
 // Other
 bool deviceConnected = false;
 unsigned long previousMillis = 0; 
+unsigned long tcodeMillis = 0; 
 std::list<std::string> pendingCommands = {};
 
 // Create Voids for Xtoys
@@ -303,13 +314,14 @@ void moveTo(int targetPosition, int targetDuration){
         float targetspeed;
         float currentStepperPosition = stepper.getCurrentPositionInMillimeters();      // Get Current Position from Stepper 
         float targetxStepperPosition = map(targetPosition, 0, 100, (maxStrokeLengthMm -(strokeZeroOffsetmm * 0.5)), 0.0); // Calculate Target positon Mulitply for Calculation Speed. 
-        float travelInMM = targetxStepperPosition -currentStepperPosition; // Get Travel Distance to Target Position 
+        float travelInMM = targetxStepperPosition -currentStepperPosition; // Get Travel Distance to Target Position
 
         if(currentMillis - previousMillis <= changetime){
-          targetspeed = (abs(travelInMM) / targetDuration) * xtoySpeedScaling * 0.20;
+          targetspeed = (abs(travelInMM) / targetDuration) * xtoySpeedScaling *0.2;
         } else {
           targetspeed = (abs(travelInMM) / targetDuration) * xtoySpeedScaling;  // Calculate Target speed from Travel Distance with xtoySpeedScaling 
         }
+        targetspeed = constrain(targetspeed, 0, maxSpeedMmPerSecond);
         LogDebugFormatted("Targetspeed %ld \n", static_cast<long int>(targetspeed));
         LogDebugFormatted("TargetxStepperPosition %ld \n", static_cast<long int>(targetxStepperPosition));
         // Security if something went wrong and were out of target range kill all.
@@ -366,18 +378,19 @@ class ControlCharacteristicCallback : public BLECharacteristicCallbacks {
 
     LogDebug("Received command: ");
     Serial.println(msg.c_str());
+    tcodeMillis = millis() - tcodeMillis;
+    LogDebugFormatted("comand time:  %ld \n", static_cast<long int>(tcodeMillis));
+    tcodeMillis = millis();
 
     // check for messages that might need to be immediately handled
     if (msg == "DSTOP") { // stop request
       LogDebug("STOP");
-      stepper.emergencyStop();
       pendingCommands.clear();
       return;
     } else if (msg == "DENABLE") { // Does nothing anymore not needed
       return;
     } else if (msg == "DDISABLE") { // disable stepper motor
       LogDebug("DISABLE");
-      stepper.emergencyStop();
       pendingCommands.clear();
       return;
     }
@@ -403,12 +416,22 @@ class ControlCharacteristicCallback : public BLECharacteristicCallbacks {
 
 // Client connected to OSSM over BLE
 class ServerCallbacks: public BLEServerCallbacks {
-  void onConnect(BLEServer* pServer) {
+  void onConnect(BLEServer* pServerm, esp_ble_gatts_cb_param_t *param) {
     deviceConnected = true;
     Serial.println("BLE Connected");
     vTaskSuspend(motionTask);
     vTaskSuspend(getInputTask);
     vTaskSuspend(estopTask);
+    vTaskSuspend(wifiTask);
+     esp_ble_conn_update_params_t conn_params = {0};  
+     memcpy(conn_params.bda, param->connect.remote_bda, sizeof(esp_bd_addr_t));
+     /* For the IOS system, please reference the apple official documents about the ble connection parameters restrictions. */
+     conn_params.latency = 0;  
+     conn_params.max_int = 0x30;    // max_int = 0x30*1.25ms = 40ms  
+     conn_params.min_int = 0x10;    // min_int = 0x10*1.25ms = 20ms   
+     conn_params.timeout = 400;     // timeout = 400*10ms = 4000ms  
+	  //start sent the update connection parameters to the peer device.
+	  esp_ble_gap_update_conn_params(&conn_params);
     vTaskResume(blemTask);
     moveTo(0, 500);             // Pulls it to 0 Position Fully out for Xtoys
   };
@@ -418,9 +441,10 @@ class ServerCallbacks: public BLEServerCallbacks {
     Serial.println("BLE Disconnected");
     pServer->startAdvertising();
     vTaskSuspend(blemTask);
+    vTaskResume(estopTask);
     vTaskResume(motionTask);
     vTaskResume(getInputTask);
-    vTaskResume(estopTask);
+    vTaskResume(wifiTask);
   }
 };
 
@@ -460,7 +484,7 @@ void setup()
     stepper.setSpeedInStepsPerSecond(200);
     stepper.setAccelerationInMillimetersPerSecondPerSecond(100);
     stepper.setDecelerationInStepsPerSecondPerSecond(100000);
-    stepper.setLimitSwitchActive(LIMIT_SWITCH_PIN);
+    stepper.setLimitSwitchActive(0);
 
     // Start the stepper instance as a service in the "background" as a separate
     // task and the OS of the ESP will take care of invoking the processMovement()
@@ -510,7 +534,7 @@ void setup()
     //start the WiFi connection task so we can be doing something while homing!
     xTaskCreatePinnedToCore(wifiConnectionTask,   /* Task function. */
                             "wifiConnectionTask", /* name of task. */
-                            10000,                /* Stack size of task */
+                            3000,                /* Stack size of task */
                             NULL,                 /* parameter of the task */
                             1,                    /* priority of the task */
                             &wifiTask,            /* Task handle to keep track of created task */
@@ -536,7 +560,7 @@ void setup()
     //start the BLE connection after homing for clean homing when reconnecting
     xTaskCreatePinnedToCore(blemotionTask,      /* Task function. */
                             "blemotionTask",    /* name of task. */
-                            2000,               /* Stack size of task */
+                            3000,               /* Stack size of task */
                             NULL,               /* parameter of the task */
                             1,                  /* priority of the task */
                             &blemTask,          /* Task handle to keep track of created task */
@@ -546,7 +570,7 @@ void setup()
     
     xTaskCreatePinnedToCore(bleConnectionTask,   /* Task function. */
                             "bleConnectionTask", /* name of task. */
-                            10000,                /* Stack size of task */
+                            4000,                /* Stack size of task */
                             NULL,                 /* parameter of the task */
                             1,                    /* priority of the task */
                             &bleTask,            /* Task handle to keep track of created task */
@@ -560,7 +584,7 @@ void setup()
 
     xTaskCreatePinnedToCore(getUserInputTask,   /* Task function. */
                             "getUserInputTask", /* name of task. */
-                            5000,              /* Stack size of task */
+                            2000,              /* Stack size of task */
                             NULL,               /* parameter of the task */
                             1,                  /* priority of the task */
                             &getInputTask,      /* Task handle to keep track of created task */
@@ -577,7 +601,7 @@ void setup()
     delay(100);
     xTaskCreatePinnedToCore(estopResetTask,   /* Task function. */
                             "estopResetTask", /* name of task. */
-                            10000,            /* Stack size of task */
+                            2000,            /* Stack size of task */
                             NULL,             /* parameter of the task */
                             1,                /* priority of the task */
                             &estopTask,       /* Task handle to keep track of created task */
@@ -625,6 +649,7 @@ void loop()
 
 void estopResetTask(void *pvParameters)
 {
+  UBaseType_t uxHighWaterMark;
     for (;;)
     {
         if (stopSwitchTriggered == 1)
@@ -638,10 +663,13 @@ void estopResetTask(void *pvParameters)
             vTaskResume(getInputTask);
         }
         vTaskDelay(100);
+        //uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+        //LogDebugFormatted("Estop HighMark in %ld \n", static_cast<long int>(uxHighWaterMark));
     }
 }
 
 void bleConnectionTask(void *pvParameters){
+  UBaseType_t uxHighWaterMark;
 
   LogDebug("Initializing BLE Server...");
   BLEDevice::init("OSSM");
@@ -688,12 +716,14 @@ void bleConnectionTask(void *pvParameters){
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
   updateSettingsCharacteristic();
+  uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+  LogDebugFormatted("Ble Free Stack size %ld \n", static_cast<long int>(uxHighWaterMark));
   vTaskDelete(NULL);
 }
 
-
 void wifiConnectionTask(void *pvParameters)
 {
+    UBaseType_t uxHighWaterMark;
     wm.setConfigPortalTimeout(100);
     wm.setConfigPortalBlocking(false);
     // here we try to connect to WiFi or launch settings hotspot for you to enter
@@ -714,32 +744,43 @@ void wifiConnectionTask(void *pvParameters)
         vTaskDelay(1);
 
         // delete this task once connected!
+        uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+        LogDebugFormatted("Wifi Free Stack size %ld \n", static_cast<long int>(uxHighWaterMark));
         if (WiFi.status() == WL_CONNECTED)
         {
             vTaskDelete(NULL);
         }
+
     }
 }
 
 // BLE Motion task reads the Command list and starts the processing Cycle
 void blemotionTask(void *pvParameters)
 {
+  UBaseType_t uxHighWaterMark;
+  float target = 0.0; 
     for (;;) // tasks should loop forever and not return - or will throw error in
              // OS
     {
-        while (stepper.getDistanceToTargetSigned() != 0)
+
+        while ( abs(stepper.getDistanceToTargetSigned()) > (target * 0.10) )
         {
             vTaskDelay(5); // wait for motion to complete
+            // float targetdist = abs(stepper.getDistanceToTargetSigned());
+            // LogDebugFormatted("Target Distance in %ld \n", static_cast<long int>(targetdist));
         }
-        stepper.releaseEmergencyStop();
-        stepper.setDecelerationInMillimetersPerSecondPerSecond(xtoyAccelartion);
+        
+        stepper.setDecelerationInMillimetersPerSecondPerSecond(xtoyDeaccelartion);
         vTaskDelay(1);
         if (pendingCommands.size() > 0) { 
         std::string command = pendingCommands.front();
         processCommand(command);
+        target = abs(stepper.getDistanceToTargetSigned());
         pendingCommands.pop_front();
         }  
         vTaskDelay(1);
+        //uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+        //LogDebugFormatted("Blemotion HighMark in %ld \n", static_cast<long int>(uxHighWaterMark));
     }    
 }
 
@@ -748,6 +789,7 @@ void blemotionTask(void *pvParameters)
 void getUserInputTask(void *pvParameters)
 {
     bool wifiControlEnable = false;
+    UBaseType_t uxHighWaterMark;
     for (;;) // tasks should loop forever and not return - or will throw error in
              // OS
     {
@@ -806,11 +848,14 @@ void getUserInputTask(void *pvParameters)
             // before slowing. We should only change decel at rest
         }
         vTaskDelay(100); // let other code run!
+        // uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+        // LogDebugFormatted("UserImput HighMark in %ld \n", static_cast<long int>(uxHighWaterMark));
     }
 }
 
 void motionCommandTask(void *pvParameters)
 {
+    UBaseType_t uxHighWaterMark;
     for (;;) // tasks should loop forever and not return - or will throw error in
              // OS
     {
@@ -841,6 +886,8 @@ void motionCommandTask(void *pvParameters)
                                                                accelerationScaling);
         stepper.setTargetPositionInMillimeters(targetPosition);
         vTaskDelay(1);
+        uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+        LogDebugFormatted("UserMotion HighMark in %ld \n", static_cast<long int>(uxHighWaterMark));
   }
 }
 
