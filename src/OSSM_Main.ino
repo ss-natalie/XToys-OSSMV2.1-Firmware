@@ -744,8 +744,8 @@ void wifiConnectionTask(void *pvParameters)
         vTaskDelay(1);
 
         // delete this task once connected!
-        uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
-        LogDebugFormatted("Wifi Free Stack size %ld \n", static_cast<long int>(uxHighWaterMark));
+        // uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+        // LogDebugFormatted("Wifi Free Stack size %ld \n", static_cast<long int>(uxHighWaterMark));
         if (WiFi.status() == WL_CONNECTED)
         {
             vTaskDelete(NULL);
