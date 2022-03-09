@@ -427,8 +427,8 @@ class ServerCallbacks: public BLEServerCallbacks {
      memcpy(conn_params.bda, param->connect.remote_bda, sizeof(esp_bd_addr_t));
      /* For the IOS system, please reference the apple official documents about the ble connection parameters restrictions. */
      conn_params.latency = 0;  
-     conn_params.max_int = 0x30;    // max_int = 0x30*1.25ms = 40ms  
-     conn_params.min_int = 0x10;    // min_int = 0x10*1.25ms = 20ms   
+     conn_params.max_int = 0x60;    // max_int = 0x30*1.25ms = 40ms  
+     conn_params.min_int = 0x30;    // min_int = 0x10*1.25ms = 20ms   
      conn_params.timeout = 400;     // timeout = 400*10ms = 4000ms  
 	  //start sent the update connection parameters to the peer device.
 	  esp_ble_gap_update_conn_params(&conn_params);
@@ -716,8 +716,8 @@ void bleConnectionTask(void *pvParameters){
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
   updateSettingsCharacteristic();
-  uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
-  LogDebugFormatted("Ble Free Stack size %ld \n", static_cast<long int>(uxHighWaterMark));
+  // uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+  // LogDebugFormatted("Ble Free Stack size %ld \n", static_cast<long int>(uxHighWaterMark));
   vTaskDelete(NULL);
 }
 
@@ -886,8 +886,8 @@ void motionCommandTask(void *pvParameters)
                                                                accelerationScaling);
         stepper.setTargetPositionInMillimeters(targetPosition);
         vTaskDelay(1);
-        uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
-        LogDebugFormatted("UserMotion HighMark in %ld \n", static_cast<long int>(uxHighWaterMark));
+        // uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+        // LogDebugFormatted("UserMotion HighMark in %ld \n", static_cast<long int>(uxHighWaterMark));
   }
 }
 
