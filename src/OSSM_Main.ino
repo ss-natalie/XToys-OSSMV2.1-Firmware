@@ -427,9 +427,9 @@ class ServerCallbacks: public BLEServerCallbacks {
      memcpy(conn_params.bda, param->connect.remote_bda, sizeof(esp_bd_addr_t));
      /* For the IOS system, please reference the apple official documents about the ble connection parameters restrictions. */
      conn_params.latency = 0;  
-     conn_params.max_int = 0x60;    // max_int = 0x30*1.25ms = 40ms  
-     conn_params.min_int = 0x30;    // min_int = 0x10*1.25ms = 20ms   
-     conn_params.timeout = 400;     // timeout = 400*10ms = 4000ms  
+     conn_params.max_int = 0x12;    // max_int = 0x48*1.25ms  
+     conn_params.min_int = 0x12;    // min_int = 0x24*1.25ms   
+     conn_params.timeout = 800;     // timeout = *10ms  
 	  //start sent the update connection parameters to the peer device.
 	  esp_ble_gap_update_conn_params(&conn_params);
     vTaskResume(blemTask);
@@ -766,8 +766,6 @@ void blemotionTask(void *pvParameters)
         while ( abs(stepper.getDistanceToTargetSigned()) > (target * 0.10) )
         {
             vTaskDelay(5); // wait for motion to complete
-            // float targetdist = abs(stepper.getDistanceToTargetSigned());
-            // LogDebugFormatted("Target Distance in %ld \n", static_cast<long int>(targetdist));
         }
         
         stepper.setDecelerationInMillimetersPerSecondPerSecond(xtoyDeaccelartion);
