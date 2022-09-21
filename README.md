@@ -23,5 +23,5 @@ Supported T-Code commands to send to Control characteristic:
 DSTOP - Stop OSSM immediately (leaves motor enabled)  
 DENABLE - Enables motor (non-standard T-Code command)  
 DDISABLE - Disable motor (non-standard T-Code command)  
-L199I100 - Linear actuator move commands with a position + speed  
+L199I100 - Linear actuator move commands with a position + time  
 L199I100C - Appending 'C' to a command causes the OSSM to clear any pending movement commands (non-standard T-Code command)
