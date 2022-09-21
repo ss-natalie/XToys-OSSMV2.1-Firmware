@@ -1,4 +1,5 @@
-
+#ifndef OSSM_PIN_H
+#define OSSM_PIN_H
 /*
     Pin Definitions - Drivers, Buttons and Remotes
     OSSM Reference board users are unlikely to need to modify this! See OSSM_Config.h
@@ -28,16 +29,16 @@
         Wifi Control Pins
 */
 // Pin for WiFi reset button (optional)
-#define WIFI_RESET_PIN 0
+#define WIFI_RESET_PIN 23
 
 //Pin for the toggle for wifi control (Can be left alone if no hardware toggle is required)
 #define WIFI_CONTROL_TOGGLE_PIN 22
 
 #define LOCAL_CONTROLLER INPUT_PULLDOWN
-#define WIFI_CONTROLLER INPUT_PULLDOWN
+#define WIFI_CONTROLLER INPUT_PULLUP
 //Choose whether the default control scheme is local (e.g. OSSM remote, potentiometers, etc.) or through Wi-Fi
 //If both are desired, a hardware toggle will need to be installed and wired to WIFI_CONTROL_TOGGLE_PIN
-#define LOCAL_CONTROLLER WIFI_CONTROL_DEFAULT
+#define WIFI_CONTROL_DEFAULT LOCAL_CONTROLLER
 
 /*These are configured for the OSSM Remote - which has a screen, a potentiometer and an encoder which clicks*/
 #define SPEED_POT_PIN 34
@@ -47,3 +48,6 @@
 #define REMOTE_SDA 21
 #define REMOTE_CLK 19
 #define REMOTE_ADDRESS 0x3c
+
+
+#endif
