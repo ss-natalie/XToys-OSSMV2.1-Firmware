@@ -35,8 +35,8 @@ class OSSM
     OssmUi g_ui;
     CRGB ossmleds[NUM_LEDS];
 
-    enum runMode {simpleMode, strokeEngineMode};
-    int runModeCount = 2;
+    enum runMode {simpleMode, strokeEngineMode, xtoysBLEMode};
+    int runModeCount = 3;
 
     runMode activeRunMode = simpleMode;
     float maxSpeedMmPerSecond = hardcode_maxSpeedMmPerSecond;

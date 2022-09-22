@@ -175,6 +175,13 @@ void OSSM::setRunMode()
                 g_ui.UpdateMessage("Stroke Engine");
                 activeRunMode = strokeEngineMode;
                 break;
+
+            // added to have an XToys mode to choose from which does not choose Stroke Engine 
+            // or Simple Penetrate mode
+            case xtoysBLEMode:
+                g_ui.UpdateMessage("XToys with Bluetooth");
+                activeRunMode = xtoysBLEMode;
+                break;
         }
     }
     g_encoder.write(0); // reset encoder to zero

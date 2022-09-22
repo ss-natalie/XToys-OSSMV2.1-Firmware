@@ -390,23 +390,7 @@ void setup()
     ossm.setup();
     ossm.findHome();
 
-    ossm.setRunMode();
-
-    // start the WiFi connection task so we can be doing something while homing!
-    // xTaskCreatePinnedToCore(wifiConnectionTask,   /* Task function. */
-    //                         "wifiConnectionTask", /* name of task. */
-    //                         10000,                /* Stack size of task */
-    //                         NULL,                 /* parameter of the task */
-    //                         1,                    /* priority of the task */
-    //                         &wifiTask,            /* Task handle to keep track of created task */
-    //                         0);                   /* pin task to core 0 */
-    // delay(100);
-
-    // Kick off the http and motion tasks - they begin executing as soon as they
-    // are created here! Do not change the priority of the task, or do so with
-    // caution. RTOS runs first in first out, so if there are no delays in your
-    // tasks they will prevent all other code from running on that core!
-    //start the BLE connection after homing for clean homing when reconnecting
+    // move up XToys BLE tasks to prioritize connecting to bluetooth
     xTaskCreatePinnedToCore(blemotionTask,      /* Task function. */
                             "blemotionTask",    /* name of task. */
                             3000,               /* Stack size of task */
@@ -425,6 +409,24 @@ void setup()
                             &bleTask,            /* Task handle to keep track of created task */
                             0);                   /* pin task to core 0 */
     delay(100);
+
+
+    // start the WiFi connection task so we can be doing something while homing!
+    // xTaskCreatePinnedToCore(wifiConnectionTask,   /* Task function. */
+    //                         "wifiConnectionTask", /* name of task. */
+    //                         10000,                /* Stack size of task */
+    //                         NULL,                 /* parameter of the task */
+    //                         1,                    /* priority of the task */
+    //                         &wifiTask,            /* Task handle to keep track of created task */
+    //                         0);                   /* pin task to core 0 */
+    // delay(100);
+
+    // Kick off the http and motion tasks - they begin executing as soon as they
+    // are created here! Do not change the priority of the task, or do so with
+    // caution. RTOS runs first in first out, so if there are no delays in your
+    // tasks they will prevent all other code from running on that core!
+    //start the BLE connection after homing for clean homing when reconnecting
+    
     xTaskCreatePinnedToCore(getUserInputTask,   /* Task function. */
                             "getUserInputTask", /* name of task. */
                             10000,              /* Stack size of task */
@@ -451,6 +453,9 @@ void setup()
                             0);               /* pin task to core 0 */
 
     delay(100);
+
+    ossm.setRunMode();  //moved setRunMode in order to allow all tasks to be started first
+
     ossm.g_ui.UpdateMessage("OSSM Ready to Play");
 } // Void Setup()
 
@@ -664,6 +669,11 @@ void motionCommandTask(void *pvParameters)
 
             case ossm.strokeEngineMode:
                 ossm.runStrokeEngine();
+                break;
+
+            case ossm.xtoysBLEMode:
+            //break on selecting this XToys mode, since the commands are all in
+            //OSSM_Main.ino currently, and not the OSSM class/function
                 break;
         }
     }
