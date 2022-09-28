@@ -560,6 +560,8 @@ void bleConnectionTask(void *pvParameters){
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
   updateSettingsCharacteristic();
+  LogDebug("BLE Server initialized...");
+
   // uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
   // LogDebugFormatted("Ble Free Stack size %ld \n", static_cast<long int>(uxHighWaterMark));
   vTaskDelete(NULL);
@@ -672,6 +674,7 @@ void motionCommandTask(void *pvParameters)
                 break;
 
             case ossm.xtoysBLEMode:
+            LogDebug("XToys mode selected...");
             //break on selecting this XToys mode, since the commands are all in
             //OSSM_Main.ino currently, and not the OSSM class/function
                 break;
