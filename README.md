@@ -5,11 +5,11 @@ Firmware for use with the OSSM (Open Source Sex Machine) by KinkyMakers.
 ## Setting Up
 1. Clone Repo localy. 
 2. Setup Platformio see [OSSM GIT] https://github.com/KinkyMakers/OSSM-hardware 
-3. Setup Your Settings like for OSSM. maxStrokeLengthMm 
+3. Setup Your Settings like for OSSM. maxStrokeLengthMm (this is important to set, even with sensorless homing)
 3. Flash Firmware. 
 4. In [XToys](https://xtoys.app) click the + button, add the OSSM toy, and click the bluetooth connect button.
 5. Local Control & Webcontrol is disabled as Bluetooth is Connected.
-6. In the setup dialog connect to the OSSM. Don't Change Settings in the Xtoys app. 
+6. In the setup dialog connect to the OSSM. **Do not mess with any of the settings (maxIn, maxOut, etc...)**
 
 ## Bluetooth Info
 This firmware uses the following Bluetooth info:  
