@@ -463,6 +463,9 @@ float OSSM::sensorlessHoming()
     Serial.print(measuredStrokeMm);
     Serial.println(" mm");
     g_ui.UpdateMessage("Homing Complete");
+    LogDebug("Moving back all of the way for XToys...");
+    stepper.setSpeedInMillimetersPerSecond(25);
+    stepper.setTargetPositionInMillimeters(measuredStrokeMm);
     // digitalWrite(MOTOR_ENABLE_PIN, HIGH);
     // delay(500);
     // digitalWrite(MOTOR_ENABLE_PIN, LOW);

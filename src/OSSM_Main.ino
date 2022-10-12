@@ -232,7 +232,7 @@ void moveTo(int targetPosition, int targetDuration){
         unsigned long currentMillis = millis();                                       // Get Time
         float targetspeed;
         float currentStepperPosition = ossm.stepper.getCurrentPositionInMillimeters();      // Get Current Position from Stepper
-        float targetxStepperPosition = map(targetPosition, 0, 100, (hardcode_maxStrokeLengthMm -(hardcode_strokeZeroOffsetmm * 0.5)), 0.0); // Calculate Target positon Mulitply for Calculation Speed.
+        float targetxStepperPosition = map(targetPosition, 100, 0, (-hardcode_maxStrokeLengthMm +(hardcode_strokeZeroOffsetmm * 0.5)), 0.0); // Calculate Target positon Mulitply for Calculation Speed.
         float travelInMM = targetxStepperPosition -currentStepperPosition; // Get Travel Distance to Target Position
 
         if(currentMillis - previousMillis <= changetime){
@@ -244,7 +244,7 @@ void moveTo(int targetPosition, int targetDuration){
         LogDebugFormatted("Targetspeed %ld \n", static_cast<long int>(targetspeed));
         LogDebugFormatted("TargetxStepperPosition %ld \n", static_cast<long int>(targetxStepperPosition));
         // Security if something went wrong and were out of target range kill all.
-        if(targetxStepperPosition < (hardcode_maxStrokeLengthMm + (hardcode_strokeZeroOffsetmm * 0.5)) || targetxStepperPosition >= 0.0){
+        if(targetxStepperPosition < (hardcode_maxStrokeLengthMm*2 + (hardcode_strokeZeroOffsetmm * 0.5)) || targetxStepperPosition >= 0.0){
         ossm.stepper.setSpeedInMillimetersPerSecond(targetspeed);                          // Sets speed to Stepper
         ossm.stepper.setAccelerationInMillimetersPerSecondPerSecond(xtoyAccelartion);      // Sets Accelartion
         ossm.stepper.setTargetPositionInMillimeters(targetxStepperPosition);               //Sets Position
@@ -337,11 +337,11 @@ class ControlCharacteristicCallback : public BLECharacteristicCallbacks {
 class ServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServerm, esp_ble_gatts_cb_param_t *param) {
     deviceConnected = true;
-    Serial.println("BLE Connected");
-    vTaskSuspend(motionTask);
-    vTaskSuspend(getInputTask);
-    vTaskSuspend(estopTask);
-    vTaskSuspend(wifiTask);
+    Serial.println("BLE Connected...");
+    //vTaskSuspend(motionTask);
+    //vTaskSuspend(getInputTask);
+    //vTaskSuspend(estopTask);
+    //vTaskSuspend(wifiTask);
      esp_ble_conn_update_params_t conn_params = {0};
      memcpy(conn_params.bda, param->connect.remote_bda, sizeof(esp_bd_addr_t));
      /* For the IOS system, please reference the apple official documents about the ble connection parameters restrictions. */
@@ -352,7 +352,8 @@ class ServerCallbacks: public BLEServerCallbacks {
 	  //start sent the update connection parameters to the peer device.
 	  esp_ble_gap_update_conn_params(&conn_params);
     vTaskResume(blemTask);
-    moveTo(0, 500);             // Pulls it to 0 Position Fully out for Xtoys
+    LogDebug("blemtask resumed...");
+    moveTo(53, 2000);             // Pulls it to 0 Position Fully out for Xtoys
   };
 
   void onDisconnect(BLEServer* pServer) {
@@ -360,10 +361,10 @@ class ServerCallbacks: public BLEServerCallbacks {
     Serial.println("BLE Disconnected");
     pServer->startAdvertising();
     vTaskSuspend(blemTask);
-    vTaskResume(estopTask);
-    vTaskResume(motionTask);
-    vTaskResume(getInputTask);
-    vTaskResume(wifiTask);
+    //vTaskResume(estopTask);
+    //vTaskResume(motionTask);
+    //vTaskResume(getInputTask);
+    //vTaskResume(wifiTask);
   }
 };
 
@@ -393,22 +394,22 @@ void setup()
     // move up XToys BLE tasks to prioritize connecting to bluetooth
     xTaskCreatePinnedToCore(blemotionTask,      /* Task function. */
                             "blemotionTask",    /* name of task. */
-                            3000,               /* Stack size of task */
+                            8000,               /* Stack size of task */
                             NULL,               /* parameter of the task */
                             1,                  /* priority of the task */
                             &blemTask,          /* Task handle to keep track of created task */
                             0);                 /* pin task to core 0 */
     vTaskSuspend(blemTask);                     //Suspend Task after Creation for free CPU & RAM
-    delay(100);
+    delay(1000);
 
     xTaskCreatePinnedToCore(bleConnectionTask,   /* Task function. */
                             "bleConnectionTask", /* name of task. */
-                            4000,                /* Stack size of task */
+                            8000,                /* Stack size of task */
                             NULL,                 /* parameter of the task */
                             1,                    /* priority of the task */
                             &bleTask,            /* Task handle to keep track of created task */
                             0);                   /* pin task to core 0 */
-    delay(100);
+    delay(1000);
 
 
     // start the WiFi connection task so we can be doing something while homing!
@@ -427,34 +428,36 @@ void setup()
     // tasks they will prevent all other code from running on that core!
     //start the BLE connection after homing for clean homing when reconnecting
     
-    xTaskCreatePinnedToCore(getUserInputTask,   /* Task function. */
-                            "getUserInputTask", /* name of task. */
-                            10000,              /* Stack size of task */
-                            NULL,               /* parameter of the task */
-                            1,                  /* priority of the task */
-                            &getInputTask,      /* Task handle to keep track of created task */
-                            0);                 /* pin task to core 0 */
-    delay(100);
-    xTaskCreatePinnedToCore(motionCommandTask,   /* Task function. */
-                            "motionCommandTask", /* name of task. */
-                            20000,               /* Stack size of task */
-                            NULL,                /* parameter of the task */
-                            1,                   /* priority of the task */
-                            &motionTask,         /* Task handle to keep track of created task */
-                            0);                  /* pin task to core 0 */
 
-    delay(100);
-    xTaskCreatePinnedToCore(estopResetTask,   /* Task function. */
-                            "estopResetTask", /* name of task. */
-                            10000,            /* Stack size of task */
-                            NULL,             /* parameter of the task */
-                            1,                /* priority of the task */
-                            &estopTask,       /* Task handle to keep track of created task */
-                            0);               /* pin task to core 0 */
+    // xTaskCreatePinnedToCore(getUserInputTask,   /* Task function. */
+    //                         "getUserInputTask", /* name of task. */
+    //                         10000,              /* Stack size of task */
+    //                         NULL,               /* parameter of the task */
+    //                         1,                  /* priority of the task */
+    //                         &getInputTask,      /* Task handle to keep track of created task */
+    //                         0);                 /* pin task to core 0 */
+    // delay(100);
+    // xTaskCreatePinnedToCore(motionCommandTask,   /* Task function. */
+    //                         "motionCommandTask", /* name of task. */
+    //                         20000,               /* Stack size of task */
+    //                         NULL,                /* parameter of the task */
+    //                         1,                   /* priority of the task */
+    //                         &motionTask,         /* Task handle to keep track of created task */
+    //                         0);                  /* pin task to core 0 */
 
-    delay(100);
+    // delay(100);
+    
+    // xTaskCreatePinnedToCore(estopResetTask,   /* Task function. */
+    //                         "estopResetTask", /* name of task. */
+    //                         10000,            /* Stack size of task */
+    //                         NULL,             /* parameter of the task */
+    //                         1,                /* priority of the task */
+    //                         &estopTask,       /* Task handle to keep track of created task */
+    //                         0);               /* pin task to core 0 */
 
-    ossm.setRunMode();  //moved setRunMode in order to allow all tasks to be started first
+    // delay(100);
+
+    //ossm.setRunMode();  //moved setRunMode in order to allow all tasks to be started first
 
     ossm.g_ui.UpdateMessage("OSSM Ready to Play");
 } // Void Setup()
@@ -600,7 +603,7 @@ void blemotionTask(void *pvParameters)
 }
 // Task to read settings from server - only need to check this when in WiFi
 // control mode
-void getUserInputTask(void *pvParameters)
+/* void getUserInputTask(void *pvParameters)
 {
     bool wifiControlEnable = false;
     for (;;) // tasks should loop forever and not return - or will throw error in
@@ -656,9 +659,9 @@ void getUserInputTask(void *pvParameters)
         }
         vTaskDelay(50); // let other code run!
     }
-}
+} */
 
-void motionCommandTask(void *pvParameters)
+/* void motionCommandTask(void *pvParameters)
 {
     for (;;) // tasks should loop forever and not return - or will throw error in
              // OS
@@ -680,7 +683,7 @@ void motionCommandTask(void *pvParameters)
                 break;
         }
     }
-}
+} */
 
 // float getAnalogVoltage(int pinNumber, int samples){
 
