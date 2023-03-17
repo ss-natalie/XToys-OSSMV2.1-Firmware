@@ -128,9 +128,6 @@ const char* FIRMWARE_VERSION = "v1.1";
 
 #define DEFAULT_MAX_SPEED 50        // Max Sending Resolution in ms should not be changed right now
 #define DEFAULT_MIN_SPEED 1000      // Min Sending Resolution in ms should not be changed right now
-
-#define DEFAULT_MAX_SPEED 100
-#define DEFAULT_MIN_SPEED 2000
 #define DEFAULT_MAX_POSITION_IN 0
 #define DEFAULT_MAX_POSITION_OUT 100
 
