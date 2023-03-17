@@ -129,6 +129,10 @@ const char* FIRMWARE_VERSION = "v1.1";
 #define DEFAULT_MAX_SPEED 50        // Max Sending Resolution in ms should not be changed right now
 #define DEFAULT_MIN_SPEED 1000      // Min Sending Resolution in ms should not be changed right now
 
+#define DEFAULT_MAX_SPEED 100
+#define DEFAULT_MIN_SPEED 2000
+#define DEFAULT_MAX_POSITION_IN 0
+#define DEFAULT_MAX_POSITION_OUT 100
 
 // Global Variables - Bluetooth Configuration
 BLEServer *pServer;
@@ -145,7 +149,6 @@ int maxOutPosition;
 int maxSpeed;
 int minSpeed;
 int changetime = 100; // Ms wich the system is slowing down when change of code is dected for safety
-
 
 // Other
 bool deviceConnected = false;
@@ -458,6 +461,11 @@ void setup()
     travelList.add(100);
     travelList.add(100);
     travelList.add(100);
+
+    maxInPosition = preferences.getInt("maxIn", DEFAULT_MAX_POSITION_IN);
+    maxOutPosition = preferences.getInt("maxOut", DEFAULT_MAX_POSITION_OUT);
+    maxSpeed = preferences.getInt("maxSpeed", DEFAULT_MAX_SPEED);
+    minSpeed = preferences.getInt("minSpeed", DEFAULT_MIN_SPEED);
 
     // move up XToys BLE tasks to prioritize connecting to bluetooth
     xTaskCreatePinnedToCore(blemotionTask,      /* Task function. */
