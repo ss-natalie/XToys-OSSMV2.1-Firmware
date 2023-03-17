@@ -96,6 +96,7 @@ class OSSM
     void writeEepromLifeStats();
     void updateLifeStats();
     void startLeds();
+    float findStrokeLengthFromHoming();
 
     // inputs
     void updateAnalogInputs();

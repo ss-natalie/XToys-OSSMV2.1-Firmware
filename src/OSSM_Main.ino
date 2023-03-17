@@ -25,6 +25,7 @@
 #include "BLE2904.h"
 #include <Preferences.h>
 #include <list>               // Is filled with the Cached Commands from Xtoys
+#include <Linked_List.h>
 
 // Homing
 volatile bool g_has_not_homed = true;
@@ -151,6 +152,17 @@ bool deviceConnected = false;
 unsigned long previousMillis = 0;
 unsigned long tcodeMillis = 0;
 std::list<std::string> pendingCommands = {};
+unsigned long lastMillis = 10000;
+unsigned long countdown = -10;
+unsigned long countdownMillis = 10000000;
+unsigned long millisCheck = 0;
+unsigned long slowScaling = 0.05;
+float travelCheck = 0;
+LinkedList<float> travelList = LinkedList<float>();
+int travelCount = 1;
+float maxStrokeLengthMm = 100;
+float lastPosition = 100;
+
 
 // Create Voids for Xtoys
 void updateSettingsCharacteristic();
@@ -229,25 +241,70 @@ void processCommand(std::string msg) {
 // Dedicated MoveCommand for Xtoys for Position based movement
 void moveTo(int targetPosition, int targetDuration){
         ossm.stepper.releaseEmergencyStop();
-        unsigned long currentMillis = millis();                                       // Get Time
         float targetspeed;
+        float travelMin = std::min(std::min(std::min(std::min(std::min(std::min(std::min(std::min(std::min(travelList.get(0),travelList.get(1)),travelList.get(2)),travelList.get(3)), travelList.get(4)), travelList.get(5)), travelList.get(6)), travelList.get(7)), travelList.get(8)), travelList.get(9));
+        travelCheck = travelMin - targetPosition;
+        if(targetPosition < lastPosition)
+        {
+          if(travelCheck > 25)
+          {
+            if (travelCount < 6)
+            {
+              targetPosition = (targetPosition - lastPosition) * (1 / 3.5) + lastPosition;
+              travelCount = travelCount + 1;
+            }
+            else 
+            {
+              travelCount = 1;
+            }
+          }
+          else
+          {
+            travelCount = 1;
+          }
+        }
+        travelList.unshift(targetPosition);
+        travelList.pop();
+        lastPosition = targetPosition;
+
         float currentStepperPosition = ossm.stepper.getCurrentPositionInMillimeters();      // Get Current Position from Stepper
-        float targetxStepperPosition = map(targetPosition, 100, 0, (-hardcode_maxStrokeLengthMm +(hardcode_strokeZeroOffsetmm * 0.5)), 0.0); // Calculate Target positon Mulitply for Calculation Speed.
+        float targetxStepperPosition = map(targetPosition, 100, 0, (-maxStrokeLengthMm +(hardcode_strokeZeroOffsetmm * 0.5)), 0.0); // Calculate Target positon Mulitply for Calculation Speed.
         float travelInMM = targetxStepperPosition -currentStepperPosition; // Get Travel Distance to Target Position
 
-        if(currentMillis - previousMillis <= changetime){
-          targetspeed = (abs(travelInMM) / targetDuration) * xtoySpeedScaling *0.2;
-        } else {
+        unsigned long currentMillis = millis();                                       // Get Time
+        millisCheck = currentMillis - lastMillis;
+
+        if(millisCheck < 5000 ){
+          countdown = countdownMillis - currentMillis;
+          if(countdown > 0 ){
+            slowScaling = (5000-countdownMillis)/5000;
+            if (slowScaling < 0.05)
+            {
+              slowScaling = 0.05;
+            }
+            targetspeed = (abs(travelInMM) / targetDuration) * xtoySpeedScaling;  // Calculate Target speed from Travel Distance with xtoySpeedScaling
+            targetspeed = constrain(targetspeed, 0, hardcode_maxSpeedMmPerSecond * slowScaling);      
+          } 
+          else {
+            targetspeed = (abs(travelInMM) / targetDuration) * xtoySpeedScaling;  // Calculate Target speed from Travel Distance with xtoySpeedScaling
+          }
+        }
+        else {
+          slowScaling = 0.05;
           targetspeed = (abs(travelInMM) / targetDuration) * xtoySpeedScaling;  // Calculate Target speed from Travel Distance with xtoySpeedScaling
+          targetspeed = constrain(targetspeed, 0, hardcode_maxSpeedMmPerSecond * slowScaling);
+          countdownMillis = millis() + 5000;
         }
         targetspeed = constrain(targetspeed, 0, hardcode_maxSpeedMmPerSecond);
         LogDebugFormatted("Targetspeed %ld \n", static_cast<long int>(targetspeed));
         LogDebugFormatted("TargetxStepperPosition %ld \n", static_cast<long int>(targetxStepperPosition));
         // Security if something went wrong and were out of target range kill all.
-        if(targetxStepperPosition < (hardcode_maxStrokeLengthMm*2 + (hardcode_strokeZeroOffsetmm * 0.5)) || targetxStepperPosition >= 0.0){
+        
+        if(targetxStepperPosition < (maxStrokeLengthMm*2 + (hardcode_strokeZeroOffsetmm * 0.5)) || targetxStepperPosition >= 0.0){
         ossm.stepper.setSpeedInMillimetersPerSecond(targetspeed);                          // Sets speed to Stepper
         ossm.stepper.setAccelerationInMillimetersPerSecondPerSecond(xtoyAccelartion);      // Sets Accelartion
         ossm.stepper.setTargetPositionInMillimeters(targetxStepperPosition);               //Sets Position
+        lastMillis = millis();
 
         } else {
           ossm.stepper.emergencyStop();
@@ -390,6 +447,17 @@ void setup()
 
     ossm.setup();
     ossm.findHome();
+    maxStrokeLengthMm = ossm.findStrokeLengthFromHoming();
+    travelList.add(100);
+    travelList.add(100);
+    travelList.add(100);
+    travelList.add(100);
+    travelList.add(100);
+    travelList.add(100);
+    travelList.add(100);
+    travelList.add(100);
+    travelList.add(100);
+    travelList.add(100);
 
     // move up XToys BLE tasks to prioritize connecting to bluetooth
     xTaskCreatePinnedToCore(blemotionTask,      /* Task function. */

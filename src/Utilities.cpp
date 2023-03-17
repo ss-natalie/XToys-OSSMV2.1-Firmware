@@ -383,6 +383,11 @@ bool OSSM::findHome()
     LogDebug("Homing returning");
 }
 
+float OSSM::findStrokeLengthFromHoming()
+{
+    return maxStrokeLengthMm;
+}
+
 float OSSM::sensorlessHoming()
 {
     // find retracted position, mark as zero, find extended position, calc total length, subtract 2x offsets and

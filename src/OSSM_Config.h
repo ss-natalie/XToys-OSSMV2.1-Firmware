@@ -29,7 +29,7 @@ extern volatile long lastEncoderButtonPressMillis;
         Motion System Config
 */
 // Top linear speed of the device.
-const float hardcode_maxSpeedMmPerSecond = 1200.0f;
+const float hardcode_maxSpeedMmPerSecond = 1400.0f;
 // This should match the step/rev of your stepper or servo.
 // N.b. the iHSV57 has a table on the side for setting the DIP switches to your preference.
 const float hardcode_motorStepPerRevolution = 800.0f;
@@ -42,7 +42,7 @@ const float hardcode_beltPitchMm = 2.0f;
 // The absolute max your OSSM would have is the distance between the belt attachments subtract
 // the linear block holder length (75mm on OSSM)
 // Recommended to also subtract e.g. 20mm to keep the backstop well away from the device.
-const float hardcode_maxStrokeLengthMm = 170.f;
+const float hardcode_maxStrokeLengthMm = 175.f;
 /*
         Web Config
 */
@@ -57,7 +57,7 @@ extern const char *ossmId;
 
 */
 const float xtoySpeedScaling  = 1000.0f;          // Scaling how fast Xtoy can travel it is limted by maxSpeedMmPerSecond at top.
-const float xtoyAccelartion   = 40000.0f;         // Hard Coded Acceleration.
+const float xtoyAccelartion   = 80000.0f;         // Hard Coded Acceleration.
 const float xtoyDeaccelartion =  80000.0f;        // Hard Coded Decceleration.
 
 /*
@@ -65,11 +65,11 @@ const float xtoyDeaccelartion =  80000.0f;        // Hard Coded Decceleration.
 */
 // After homing this is the physical buffer distance from the effective zero to the home switch
 // This is to stop the home switch being smacked constantly
-const float hardcode_strokeZeroOffsetmm = 10.0f;
+const float hardcode_strokeZeroOffsetmm = 6.0f;
 // The minimum value of the pot in percent
 // prevents noisy pots registering commands when turned down to zero by user
 const float commandDeadzonePercentage = 1.0f;
 // affects acceleration in stepper trajectory (Aggressiveness of motion)
-const float hardcode_accelerationScaling = 100.0f;
+const float hardcode_accelerationScaling = 120.0f;
 
 #endif
