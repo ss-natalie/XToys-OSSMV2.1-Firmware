@@ -126,10 +126,10 @@ const char* FIRMWARE_VERSION = "v1.1";
 #define NUM_DURATION 3    // Duration to Position from Xtoys T-Code in ms
 #define NUM_VALUE 4
 
-#define DEFAULT_MAX_SPEED 50        // Max Sending Resolution in ms should not be changed right now
-#define DEFAULT_MIN_SPEED 1000      // Min Sending Resolution in ms should not be changed right now
-#define DEFAULT_MAX_POSITION_IN 0
-#define DEFAULT_MAX_POSITION_OUT 100
+#define DEFAULT_MAX_SPEED 2000        // Max Sending Resolution in ms should not be changed right now
+#define DEFAULT_MIN_SPEED 50      // Min Sending Resolution in ms should not be changed right now
+#define DEFAULT_MAX_POSITION_IN 100
+#define DEFAULT_MAX_POSITION_OUT 0
 
 // Global Variables - Bluetooth Configuration
 BLEServer *pServer;
@@ -162,6 +162,7 @@ LinkedList<float> travelList = LinkedList<float>();
 int travelCount = 1;
 float maxStrokeLengthMm = 100;
 float lastPosition = 100;
+float lastPositionCheck = 100;
 
 
 // Create Voids for Xtoys
@@ -250,14 +251,14 @@ void moveTo(int targetPosition, int targetDuration){
           {
             if (travelCount < 6)
             {
-              targetPosition = (targetPosition - lastPosition) * (1 / 3.5) + lastPosition;
+              targetPosition = (targetPosition - travelMin) * (1 / 3.5) + travelMin;
               travelCount = travelCount + 1;
             }
             else 
             {
               travelCount = 1;
             }
-          }
+        }
           else
           {
             travelCount = 1;
@@ -269,7 +270,7 @@ void moveTo(int targetPosition, int targetDuration){
 
         float currentStepperPosition = ossm.stepper.getCurrentPositionInMillimeters();      // Get Current Position from Stepper
         float targetxStepperPosition = map(targetPosition, 100, 0, (-maxStrokeLengthMm +(hardcode_strokeZeroOffsetmm * 0.5)), 0.0); // Calculate Target positon Mulitply for Calculation Speed.
-        float travelInMM = targetxStepperPosition -currentStepperPosition; // Get Travel Distance to Target Position
+        float travelInMM = targetxStepperPosition - currentStepperPosition; // Get Travel Distance to Target Position
 
         unsigned long currentMillis = millis();                                       // Get Time
         millisCheck = currentMillis - lastMillis;
@@ -447,7 +448,7 @@ void setup()
 
     ossm.setup();
     ossm.findHome();
-    maxStrokeLengthMm = ossm.findStrokeLengthFromHoming();
+    maxStrokeLengthMm = 0 - ossm.findStrokeLengthFromHoming();
     travelList.add(100);
     travelList.add(100);
     travelList.add(100);
